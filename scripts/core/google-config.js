@@ -15,6 +15,9 @@ const config = {
         redirectUri: process.env.GOOGLE_REDIRECT_URI,
         projectId: process.env.GOOGLE_PROJECT_ID,
         spreadsheetId: process.env.GOOGLE_SPREADSHEET_ID,
+        authUri: process.env.GOOGLE_AUTH_URI,
+        tokenUri: process.env.GOOGLE_TOKEN_URI,
+        certUrl: process.env.GOOGLE_CERT_URL,
         scopes: [
             'https://www.googleapis.com/auth/spreadsheets',
             'https://www.googleapis.com/auth/userinfo.email'
