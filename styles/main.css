@@ -1,0 +1,642 @@
+/**
+ * main.css
+ * Custom styles for Task Tower game beyond Tailwind defaults
+ */
+
+:root {
+    /* Base colors */
+    --background: #f5f5f5;
+    --text-primary: #333;
+    --text-secondary: #666;
+    --card-background: #fff;
+    --card-border: #e0e0e0;
+    --button-primary: #4CAF50;
+    --button-text: #fff;
+    --button-primary-hover: #45a049;
+    --task-background: #f8f9fa;
+    --link-color: #007bff;
+    --error-color: #dc3545;
+    --success-color: #28a745;
+    
+    /* Theme colors */
+    --primary: #4CAF50;
+    --secondary: #6c757d;
+    --accent: #007bff;
+    
+    /* Shadows */
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark mode variables */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --background: #1a1a1a;
+        --text-primary: #fff;
+        --text-secondary: #b3b3b3;
+        --card-background: #2d2d2d;
+        --card-border: #404040;
+        --button-primary: #4CAF50;
+        --button-text: #fff;
+        --button-primary-hover: #45a049;
+        --task-background: #333;
+        --link-color: #007bff;
+        --error-color: #dc3545;
+        --success-color: #28a745;
+    }
+}
+
+/* Main containers */
+.game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: var(--background);
+    border: 4px solid var(--card-border);
+    border-radius: 10px;
+    padding: 2rem;
+    margin: 0 auto 2rem auto;
+    box-shadow: var(--shadow-md);
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: normal;
+}
+
+.game-container.hidden {
+    display: none;
+}
+
+/* Fix text overflow issues */
+label, h1, h2, h3, h4, p, button, input, select {
+    max-width: 100%;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    hyphens: auto;
+}
+
+/* Form elements */
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+    background-color: var(--task-background);
+    border: 2px solid var(--card-border);
+    color: var(--text-primary);
+    padding: 0.5rem;
+    margin: 0.25rem 0;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus,
+textarea:focus {
+    background-color: var(--task-background);
+    border-color: var(--primary);
+    outline: none;
+}
+
+/* Form labels */
+label {
+    color: var(--text-secondary);
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.8rem;
+    margin-bottom: 0.25rem;
+    display: block;
+}
+
+/* Button styles */
+.btn-primary {
+    background-color: var(--button-primary);
+    color: var(--button-text);
+    font-family: 'Press Start 2P', cursive;
+    border: none;
+    border-radius: 6px;
+    padding: 0.8rem 1.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover:not(:disabled) {
+    background-color: var(--button-primary-hover);
+    transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-secondary {
+    background-color: var(--task-background);
+    color: var(--text-primary);
+    font-family: 'Press Start 2P', cursive;
+    border: 2px solid var(--card-border);
+    border-radius: 6px;
+    padding: 0.8rem 1.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background-color: var(--task-background);
+    color: var(--text-primary);
+    border-color: var(--primary);
+}
+
+.btn-secondary:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Modal styles */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    transition: opacity 0.3s ease-in-out;
+}
+
+.modal.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.modal-content {
+    background-color: var(--card-background);
+    border: 2px solid var(--card-border);
+    border-radius: 8px;
+    padding: 2rem;
+    max-width: 90%;
+    max-height: 90%;
+    overflow-y: auto;
+    animation: modalEnter 0.3s ease-out;
+}
+
+/* Input form styles */
+#task-input-form {
+    background-color: var(--card-background);
+    border: 2px solid var(--card-border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* Task management area */
+#universal-task-section {
+    background-color: var(--card-background);
+    border: 2px solid var(--card-border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* Subtask area */
+#subtask-area {
+    background-color: var(--card-background);
+    border: 2px solid var(--card-border);
+    border-radius: 8px;
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+/* Player cards */
+.player-card {
+    background: var(--card-background);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
+    box-shadow: var(--shadow-sm);
+}
+
+.player-card h3 {
+    color: var(--text-primary);
+    margin: 0 0 0.5rem 0;
+    font-size: 1.2rem;
+}
+
+.player-card p {
+    color: var(--text-secondary);
+    margin: 0.5rem 0;
+}
+
+/* Task List */
+.task-list {
+    margin-top: 1rem;
+}
+
+.task-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem;
+    background: var(--task-background);
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+}
+
+.task-item span {
+    color: var(--text-primary);
+    flex: 1;
+    margin-right: 1rem;
+}
+
+.task-item button {
+    background: var(--button-primary);
+    color: var(--button-text);
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.task-item button:hover {
+    background: var(--button-primary-hover);
+}
+
+/* Lobby Info */
+.lobby-code {
+    background: var(--card-background);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
+    box-shadow: var(--shadow-sm);
+}
+
+.lobby-code h3 {
+    color: var(--text-primary);
+    margin: 0 0 0.5rem 0;
+    font-size: 1.2rem;
+}
+
+.lobby-code p {
+    color: var(--text-secondary);
+    margin: 0.5rem 0;
+}
+
+.lobby-code a {
+    color: var(--link-color);
+    text-decoration: none;
+    word-break: break-all;
+}
+
+.lobby-code a:hover {
+    text-decoration: underline;
+}
+
+/* Tower container */
+.tower-container {
+    background-color: var(--card-background);
+    border: 2px solid var(--card-border);
+    border-radius: 4px;
+    padding: 0.5rem;
+    min-height: 100px;
+}
+
+/* Score display */
+.score {
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-top: 0.5rem;
+}
+
+/* Task completion buttons */
+.complete-task-btn {
+    background-color: var(--task-background);
+    color: var(--text-primary);
+    border: 2px solid var(--card-border);
+    border-radius: 4px;
+    padding: 0.5rem;
+    margin: 0.25rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.complete-task-btn:hover:not(:disabled) {
+    background-color: var(--task-background);
+    color: var(--text-primary);
+    border-color: var(--primary);
+}
+
+.complete-task-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Connection status */
+.connection-status {
+    background-color: var(--task-background);
+    color: var(--text-primary);
+    padding: 0.5rem;
+    border-radius: 4px;
+    margin: 0.5rem 0;
+    border: 2px solid var(--card-border);
+}
+
+/* Game status */
+.game-status {
+    background-color: var(--task-background);
+    color: var(--text-primary);
+    padding: 0.5rem;
+    border-radius: 4px;
+    margin: 0.5rem 0;
+    border: 2px solid var(--card-border);
+}
+
+/* Phase indicator */
+.phase-indicator {
+    background-color: var(--task-background);
+    color: var(--text-primary);
+    padding: 0.5rem;
+    border-radius: 4px;
+    margin: 0.5rem 0;
+    border: 2px solid var(--card-border);
+    animation: pulse 2s infinite;
+}
+
+/* Timer display */
+.timer-display {
+    background-color: var(--task-background);
+    color: var(--text-primary);
+    padding: 0.5rem;
+    border-radius: 4px;
+    margin: 0.5rem 0;
+    border: 2px solid var(--card-border);
+    font-size: 1.2rem;
+}
+
+/* Animations */
+@keyframes pulse {
+    0% { background-color: var(--task-background); }
+    50% { background-color: var(--button-primary); }
+    100% { background-color: var(--task-background); }
+}
+
+@keyframes modalEnter {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+/* Tower blocks styles */
+.block {
+    width: 30px;
+    height: 20px;
+    margin: 2px;
+    border: 1px solid var(--text-primary);
+    transition: transform 0.3s ease-out;
+}
+
+.block.personal {
+    background-color: #ef4444; /* Red */
+}
+
+.block.chores {
+    background-color: #3b82f6; /* Blue */
+}
+
+.block.work {
+    background-color: #10b981; /* Green */
+}
+
+/* Task category styles */
+.personal-badge {
+    background-color: rgba(239, 68, 68, 0.5);
+    color: #ffffff;
+    border: 1px solid #ef4444;
+}
+
+.chores-badge {
+    background-color: rgba(59, 130, 246, 0.5);
+    color: #ffffff;
+    border: 1px solid #3b82f6;
+}
+
+.work-badge {
+    background-color: rgba(16, 185, 129, 0.5);
+    color: #ffffff;
+    border: 1px solid #10b981;
+}
+
+/* Task buttons transition */
+.complete-task-btn {
+    transition: all 0.2s ease-in-out;
+}
+
+.complete-task-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Tooltip styles */
+.tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 120px;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -60px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 0.7rem;
+    border: 1px solid #666;
+    pointer-events: none;
+}
+
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Subtask styling */
+.subtask-area {
+    margin-left: 10px;
+    border-left: 1px solid #444;
+    padding-left: 10px;
+}
+
+.subtask-item {
+    display: flex;
+    align-items: center;
+    font-size: 0.75rem;
+    padding: 2px 0;
+}
+
+.subtask-toggle-icon {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    text-align: center;
+    line-height: 10px;
+}
+
+/* Big task marker */
+.big-task-marker {
+    color: #ffcc00;
+    font-weight: bold;
+}
+
+/* For backwards compatibility */
+.action-btn.personal {
+    background-color: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
+}
+
+.action-btn.chores {
+    background-color: rgba(59, 130, 246, 0.2);
+    border-color: #3b82f6;
+}
+
+.action-btn.work {
+    background-color: rgba(16, 185, 129, 0.2);
+    border-color: #10b981;
+}
+
+/* Task button styles */
+.action-btn {
+    border: 1px solid var(--card-border);
+    transition: all 0.2s ease;
+}
+
+.action-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+}
+
+.action-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Screen transitions */
+.game-screen {
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+.game-screen.hidden {
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+}
+
+/* Timer bar animation */
+.timer-bar {
+    transition: width 1s linear;
+}
+
+/* Results screen overlay */
+#results-screen {
+    background-color: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(4px);
+}
+
+/* Responsive adjustments beyond Tailwind */
+@media (max-width: 768px) {
+    .game-container {
+        padding: 1rem;
+    }
+    
+    .btn-primary, .btn-secondary {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.7rem;
+    }
+    
+    .tower-container {
+        min-height: 120px;
+        width: 80px;
+    }
+    
+    .block {
+        width: 25px;
+        height: 15px;
+    }
+    
+    /* Adjust game screen header for small screens */
+    #game-screen .flex.justify-between {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    #game-screen .flex.justify-between > div.flex.items-center {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    /* Make tables and forms more responsive */
+    #task-input-form {
+        grid-template-columns: 1fr !important;
+        gap: 0.75rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    h1.text-4xl {
+        font-size: 1.5rem;
+    }
+    
+    h2.text-3xl, h2.text-2xl {
+        font-size: 1.25rem;
+    }
+    
+    .btn-primary, .btn-secondary {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.6rem;
+        width: 100% !important;
+        max-width: 100%;
+    }
+    
+    /* Shrink tower sizes even more for mobile */
+    .tower-container {
+        min-height: 100px;
+        width: 60px;
+    }
+    
+    .block {
+        width: 20px;
+        height: 12px;
+    }
+    
+    /* Adjust inputs and form elements */
+    .form-group {
+        margin-bottom: 0.5rem;
+    }
+    
+    input, select {
+        font-size: 0.8rem;
+    }
+    
+    label {
+        font-size: 0.6rem;
+    }
+}
