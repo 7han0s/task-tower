@@ -1,14 +1,24 @@
-class MultiplayerManager {
+/**
+ * multiplayer-manager.js
+ * Handles multiplayer game state synchronization
+ */
+
+import { GameCore } from './game-core.js';
+import { UIController } from '../ui/ui-controller.js';
+
+export class MultiplayerManager {
     constructor() {
         this.io = null;
         this.players = new Map(); // playerId -> Player object
         this.gameState = null;
         this.syncInterval = null;
+        this.isOnline = false;
     }
 
     // Initialize multiplayer system
     async initialize(io) {
         this.io = io;
+        this.isOnline = true;
         this.setupEventListeners();
         this.setupSync();
     }
@@ -58,6 +68,12 @@ class MultiplayerManager {
             // Handle score updates
             socket.on('score-update', (points) => {
                 this.handleScoreUpdate(socket.id, points);
+            });
+
+            // Handle player join
+            socket.on('join-game', (playerData) => {
+                console.log('Player joining game:', playerData);
+                this.handlePlayerJoin(socket, playerData);
             });
         });
     }
@@ -116,6 +132,24 @@ class MultiplayerManager {
         this.updateGameState();
     }
 
+    // Handle player join
+    handlePlayerJoin(socket, playerData) {
+        // Add player to game
+        const newPlayer = GameCore.addPlayer(playerData.name);
+        this.players.set(socket.id, newPlayer);
+
+        // Send initial game state to the new player
+        socket.emit('game-state', {
+            players: Array.from(this.players.values()),
+            round: GameCore.currentRound,
+            phase: GameCore.currentPhase,
+            timeRemaining: GameCore.phaseTimeRemaining
+        });
+
+        // Notify other players of new player
+        socket.broadcast.emit('player-joined', newPlayer);
+    }
+
     // Update game state
     updateGameState() {
         this.gameState = {
@@ -140,8 +174,11 @@ class MultiplayerManager {
         this.players.clear();
         this.gameState = null;
     }
+
+    isOnline() {
+        return this.isOnline;
+    }
 }
 
 // Export singleton instance
-const multiplayerManager = new MultiplayerManager();
-export default multiplayerManager;
+export const multiplayerManager = new MultiplayerManager();

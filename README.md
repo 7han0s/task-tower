@@ -1,4 +1,4 @@
-# Task Tower
+# Task Tower Plus
 
 A productivity gamification platform that combines task management with visual tower building mechanics in a multiplayer environment.
 
@@ -19,6 +19,7 @@ Task Tower transforms task completion into a fun and competitive experience by:
 - Customizable game settings
 - Mobile-responsive design
 - Comprehensive analytics
+- Google Sheets integration for data persistence
 
 ## Tech Stack
 
@@ -27,6 +28,7 @@ Task Tower transforms task completion into a fun and competitive experience by:
 - Real-time: WebSocket
 - Backend: Supabase (PostgreSQL + Realtime)
 - Development: Node.js, npm, ESLint, Jest
+- Data Integration: Google Sheets API
 
 ## Getting Started
 
@@ -46,9 +48,26 @@ Create a `.env` file with the following variables:
 ```
 SUPABASE_URL=your_supabase_url
 SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Google Sheets Configuration
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:3000/auth/google/callback
+GOOGLE_PROJECT_ID=your-project-id
+GOOGLE_SPREADSHEET_ID=your-spreadsheet-id
 ```
 
-4. Start the development server:
+4. Configure Google Sheets Integration:
+   a. Go to Google Cloud Console (https://console.cloud.google.com/)
+   b. Create a new project or select an existing one
+   c. Enable the Google Sheets API
+   d. Create OAuth 2.0 credentials:
+      - Type: Web application
+      - Authorized redirect URI: http://localhost:3000/auth/google/callback
+   e. Create a new Google Sheet for your game data
+   f. Share the sheet with your Google Cloud project service account
+
+5. Start the development server:
 ```bash
 npm run dev
 ```
