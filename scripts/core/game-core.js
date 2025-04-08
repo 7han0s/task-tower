@@ -17,20 +17,71 @@ let actionsTakenThisRound = {}; // Track actions per player { playerId: boolean 
 const pointsPerCategory = { personal: 1, chores: 2, work: 3 };
 let gamePaused = false;
 
-// Configuration options (could be made customizable later)
-let roundTime = 25; // Default 25 minutes
-let breakTime = 5;  // Default 5 minutes
-const workPhaseDuration = 10; // e.g., 10 seconds work (for testing, would be 25 mins in production)
-const actionPhaseDuration = 7; // e.g., 7 seconds action (for testing, would be 5 mins in production)
+// Configuration options (now customizable)
+const defaultConfig = {
+    roundTime: 25, // Default 25 minutes
+    breakTime: 5,  // Default 5 minutes
+    maxPlayers: 8, // Maximum players
+    maxRounds: 20, // Maximum rounds
+    workPhaseDuration: 10, // Work phase duration in minutes
+    actionPhaseDuration: 7, // Action phase duration in minutes
+    minRoundTime: 10, // Minimum round time
+    maxRoundTime: 60, // Maximum round time
+    minBreakTime: 5, // Minimum break time
+    maxBreakTime: 30 // Maximum break time
+};
 
 // Game Core Module
 const GameCore = (function() {
     // Private variables
     let gameStateListeners = [];
+    let config = { ...defaultConfig };
+
+    // Validate configuration
+    function validateConfig(newConfig) {
+        if (!newConfig) return;
+        
+        // Validate player settings
+        if (newConfig.maxPlayers) {
+            if (typeof newConfig.maxPlayers !== 'number' || newConfig.maxPlayers < 2) {
+                throw new Error('Invalid maxPlayers value. Must be a number greater than 1');
+            }
+        }
+
+        // Validate time settings
+        if (newConfig.roundTime) {
+            if (typeof newConfig.roundTime !== 'number' || 
+                newConfig.roundTime < config.minRoundTime || 
+                newConfig.roundTime > config.maxRoundTime) {
+                throw new Error(`Invalid roundTime value. Must be between ${config.minRoundTime} and ${config.maxRoundTime} minutes`);
+            }
+        }
+
+        if (newConfig.breakTime) {
+            if (typeof newConfig.breakTime !== 'number' || 
+                newConfig.breakTime < config.minBreakTime || 
+                newConfig.breakTime > config.maxBreakTime) {
+                throw new Error(`Invalid breakTime value. Must be between ${config.minBreakTime} and ${config.maxBreakTime} minutes`);
+            }
+        }
+    }
+
+    // Update configuration
+    function updateConfig(newConfig) {
+        validateConfig(newConfig);
+        config = { ...config, ...newConfig };
+        saveGameState();
+    }
 
     // Update game state
     function updateGameState(newState) {
         if (!newState) return;
+
+        // Validate state updates
+        if (newState.currentPhase && !['setup', 'work', 'action', 'paused', 'ended'].includes(newState.currentPhase)) {
+            console.error('Invalid phase:', newState.currentPhase);
+            return;
+        }
 
         // Update all game state properties
         currentPhase = newState.currentPhase || currentPhase;
@@ -40,6 +91,7 @@ const GameCore = (function() {
         // Update players
         if (newState.players) {
             players = newState.players;
+            currentPlayerCount = players.length;
         }
 
         // Notify listeners of state change
@@ -67,49 +119,69 @@ const GameCore = (function() {
      * @param {number} options.roundTime - Time per round in minutes
      * @param {number} options.breakTime - Time per break in minutes
      * @param {Array<string>} options.players - Array of player names
+     * @param {Object} options.config - Game configuration options
      * @param {boolean} checkSaved - Whether to check for a saved game
      */
     function initializeGame(options, checkSaved = true) {
-        players = [];
-        currentRound = 1;
-        totalRounds = options.rounds || 12;
-        currentPhase = 'setup';
-        nextPlayerId = 1;
-        nextTaskId = 1;
-        actionsTakenThisRound = {};
-        roundTime = options.roundTime || 25; // Default 25 minutes
-        breakTime = options.breakTime || 5;  // Default 5 minutes
-        gamePaused = false;
+        try {
+            // Reset game state
+            players = [];
+            currentRound = 1;
+            totalRounds = options.rounds || config.maxRounds;
+            currentPhase = 'setup';
+            nextPlayerId = 1;
+            nextTaskId = 1;
+            actionsTakenThisRound = {};
+            gamePaused = false;
 
-        // Check for saved game if requested
-        if (checkSaved && StorageManager.isAvailable()) {
-            const savedGame = StorageManager.loadGame();
-            if (savedGame) {
-                // Ask if the user wants to resume the saved game
-                const resumeGame = confirm('A saved game was found. Would you like to resume it?');
-                if (resumeGame) {
-                    return loadGameState(savedGame);
-                } else {
-                    // Clear the saved game if not resuming
-                    StorageManager.clearSaved();
+            // Update configuration if provided
+            if (options.config) {
+                updateConfig(options.config);
+            }
+
+            // Check for saved game if requested
+            if (checkSaved && StorageManager.isAvailable()) {
+                const savedGame = StorageManager.loadGame();
+                if (savedGame) {
+                    // Ask if the user wants to resume the saved game
+                    const resumeGame = confirm('A saved game was found. Would you like to resume it?');
+                    if (resumeGame) {
+                        return loadGameState(savedGame);
+                    } else {
+                        // Clear the saved game if not resuming
+                        StorageManager.clearSaved();
+                    }
                 }
             }
-        }
 
-        // Create player objects
-        for (let i = 0; i < options.players.length; i++) {
-            players.push({
-                id: nextPlayerId++,
-                name: options.players[i],
-                score: 0,
-                towerBlocks: [],
-                pendingTasks: []
-            });
-        }
+            // Validate player count
+            if (!options.players || !Array.isArray(options.players) || options.players.length < 2) {
+                throw new Error('At least 2 players are required');
+            }
 
-        console.log("Game initialized with players:", players);
-        saveGameState(); // Save the initial game state
-        return players;
+            if (options.players.length > config.maxPlayers) {
+                throw new Error(`Maximum ${config.maxPlayers} players allowed`);
+            }
+
+            // Create player objects
+            for (let i = 0; i < options.players.length; i++) {
+                players.push({
+                    id: nextPlayerId++,
+                    name: options.players[i],
+                    score: 0,
+                    towerBlocks: [],
+                    pendingTasks: [],
+                    lastAction: null
+                });
+            }
+
+            console.log("Game initialized with players:", players);
+            saveGameState(); // Save the initial game state
+            return players;
+        } catch (error) {
+            console.error('Error initializing game:', error);
+            throw error;
+        }
     }
 
     /**
@@ -144,9 +216,9 @@ const GameCore = (function() {
 
         // Set phase duration and update UI
         if (phaseName === 'work') {
-            phaseTimeRemaining = roundTime * 60;
+            phaseTimeRemaining = config.roundTime * 60;
         } else if (phaseName === 'action') {
-            phaseTimeRemaining = breakTime * 60;
+            phaseTimeRemaining = config.breakTime * 60;
         }
         startTimer(phaseTimeRemaining);
     }
@@ -200,7 +272,7 @@ const GameCore = (function() {
         currentPhase = 'action';
 
         // Start break phase timer
-        startTimer(breakTime * 60); // Convert minutes to seconds
+        startTimer(config.breakTime * 60); // Convert minutes to seconds
 
         // Notify UI of phase change
         console.log("Phase changed to action");
@@ -411,77 +483,21 @@ const GameCore = (function() {
 
     // Public API
     return {
-        // Initialize game
+        // Configuration
+        updateConfig,
+        getConfig: () => ({ ...config }),
+
+        // Game initialization
         initializeGame,
 
-        // Start game
+        // Game flow
         startGame: function() {
             // Start first round
             startRound();
         },
 
-        // Start next round
-        startNextRound,
-
-        // Start phase
-        startPhase,
-
-        // Update timer display
-        updateTimerDisplay: function() {
-            const minutes = Math.floor(phaseTimeRemaining / 60);
-            const seconds = phaseTimeRemaining % 60;
-            const formattedTime = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-
-            if (typeof window.UI !== 'undefined') {
-                window.UI.updateTimerUI(formattedTime);
-            }
-
-            // Sync game state
-            if (typeof window.SyncManager !== 'undefined') {
-                window.SyncManager.syncGameState({
-                    currentPhase,
-                    currentRound,
-                    phaseTimeRemaining,
-                    players
-                });
-            }
-        },
-
-        // Add task to player
-        addTask: function(playerId, task) {
-            const player = players.find(p => p.id === playerId);
-            if (player) {
-                player.pendingTasks.push(task);
-
-                // Sync game state
-                if (typeof window.SyncManager !== 'undefined') {
-                    window.SyncManager.syncGameState({
-                        currentPhase,
-                        currentRound,
-                        phaseTimeRemaining,
-                        players
-                    });
-                }
-            }
-        },
-
-        // Complete task for player
-        completeTask: handleTaskCompletion,
-
-        // Get current game state
-        getGameState: function() {
-            return {
-                currentPhase,
-                currentRound,
-                phaseTimeRemaining,
-                players
-            };
-        },
-
-        // Add game state listener
+        // State management
         addGameStateListener,
-
-        // Remove game state listener
         removeGameStateListener,
 
         // Getters
@@ -494,11 +510,12 @@ const GameCore = (function() {
         get nextPlayerId() { return nextPlayerId; },
         get nextTaskId() { return nextTaskId; },
         get actionsTakenThisRound() { return actionsTakenThisRound; },
+        get config() { return { ...config }; },
         get pointsPerCategory() { return pointsPerCategory; },
-        get workPhaseDuration() { return workPhaseDuration; },
-        get actionPhaseDuration() { return actionPhaseDuration; },
-        get roundTime() { return roundTime; },
-        get breakTime() { return breakTime; },
+        get workPhaseDuration() { return config.workPhaseDuration; },
+        get actionPhaseDuration() { return config.actionPhaseDuration; },
+        get roundTime() { return config.roundTime; },
+        get breakTime() { return config.breakTime; }
     };
 })();
 
