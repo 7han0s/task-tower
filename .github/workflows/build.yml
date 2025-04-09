@@ -43,33 +43,50 @@ jobs:
     - name: Build Server
       run: |
         cd server
-        GOOGLE_CREDENTIALS=${{ secrets.GOOGLE_CREDENTIALS }} GOOGLE_SPREADSHEET_ID=${{ secrets.GOOGLE_SPREADSHEET_ID }} npm run build
+        npm run build
+      env:
+        GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
 
     # Build Client
     - name: Build Client
       run: |
         cd client
-        REACT_APP_API_URL=${{ secrets.API_URL }} REACT_APP_GOOGLE_SPREADSHEET_ID=${{ secrets.GOOGLE_SPREADSHEET_ID }} npm run build
+        npm run build
+      env:
+        REACT_APP_API_URL: ${{ secrets.API_URL }}
+        REACT_APP_GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
 
     # Test Server
     - name: Test Server
       run: |
         cd server
-        GOOGLE_CREDENTIALS=${{ secrets.GOOGLE_CREDENTIALS }} GOOGLE_SPREADSHEET_ID=${{ secrets.GOOGLE_SPREADSHEET_ID }} npm test
+        npm test
+      env:
+        GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
 
     # Test Client
     - name: Test Client
       run: |
         cd client
-        REACT_APP_API_URL=${{ secrets.API_URL }} REACT_APP_GOOGLE_SPREADSHEET_ID=${{ secrets.GOOGLE_SPREADSHEET_ID }} npm test
+        npm test
+      env:
+        REACT_APP_API_URL: ${{ secrets.API_URL }}
+        REACT_APP_GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
 
     # Deploy
     - name: Deploy
       if: github.ref == 'refs/heads/dev-testing'
       run: |
         cd server
-        GOOGLE_CREDENTIALS=${{ secrets.GOOGLE_CREDENTIALS }} GOOGLE_SPREADSHEET_ID=${{ secrets.GOOGLE_SPREADSHEET_ID }} npm run build
+        npm run build
         cd ../client
-        REACT_APP_API_URL=${{ secrets.API_URL }} REACT_APP_GOOGLE_SPREADSHEET_ID=${{ secrets.GOOGLE_SPREADSHEET_ID }} npm run build
+        npm run build
         # Deployment script here
         echo "Deployment completed successfully!"
+      env:
+        GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+        REACT_APP_API_URL: ${{ secrets.API_URL }}
+        REACT_APP_GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
