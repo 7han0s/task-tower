@@ -46,8 +46,8 @@ router.get('/', async (req, res) => {
             id: row[0],
             name: row[1],
             score: row[2],
-            tasks: JSON.parse(row[3]),
-            towerBlocks: JSON.parse(row[4])
+            tasks: row[3] ? JSON.parse(row[3]) : [],
+            towerBlocks: row[4] ? JSON.parse(row[4]) : []
         }));
 
         res.json({
@@ -143,8 +143,8 @@ router.post('/pause', async (req, res) => {
                 id: row[0],
                 name: row[1],
                 score: row[2],
-                tasks: JSON.parse(row[3]),
-                towerBlocks: JSON.parse(row[4])
+                tasks: row[3] ? JSON.parse(row[3]) : [],
+                towerBlocks: row[4] ? JSON.parse(row[4]) : []
             };
 
             if (player.id === playerId) {
@@ -267,8 +267,8 @@ router.post('/player/action', async (req, res) => {
                 id: row[0],
                 name: row[1],
                 score: row[2],
-                tasks: JSON.parse(row[3]),
-                towerBlocks: JSON.parse(row[4])
+                tasks: row[3] ? JSON.parse(row[3]) : [],
+                towerBlocks: row[4] ? JSON.parse(row[4]) : []
             };
 
             if (player.id === playerId) {

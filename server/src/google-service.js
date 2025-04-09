@@ -114,6 +114,120 @@ class GoogleService {
             throw error;
         }
     }
+
+    /**
+     * Initialize Tasks tab with headers and sample data
+     * @param {string} spreadsheetId - The ID of the spreadsheet
+     * @returns {Promise<void>}
+     */
+    async initializeTasksTab(spreadsheetId) {
+        try {
+            if (!this.isConfigured) {
+                await this.init();
+            }
+
+            // Define headers
+            const headers = [
+                'ID',
+                'Task Name',
+                'Description',
+                'Category',
+                'Points',
+                'Duration (minutes)',
+                'Difficulty',
+                'Status',
+                'Assigned To',
+                'Created At',
+                'Updated At'
+            ];
+
+            // Sample tasks data
+            const sampleTasks = [
+                [
+                    1,
+                    'Code Review',
+                    'Review and provide feedback on team member\'s code',
+                    'Development',
+                    50,
+                    30,
+                    'Medium',
+                    'Available',
+                    '',
+                    new Date().toISOString(),
+                    new Date().toISOString()
+                ],
+                [
+                    2,
+                    'Bug Fix',
+                    'Fix critical bug in authentication system',
+                    'Bug',
+                    100,
+                    60,
+                    'High',
+                    'Available',
+                    '',
+                    new Date().toISOString(),
+                    new Date().toISOString()
+                ],
+                [
+                    3,
+                    'Feature Implementation',
+                    'Implement new user dashboard',
+                    'Development',
+                    150,
+                    120,
+                    'High',
+                    'Available',
+                    '',
+                    new Date().toISOString(),
+                    new Date().toISOString()
+                ]
+            ];
+
+            // Clear existing data in the Tasks tab
+            await this.clearSheetData(spreadsheetId, 'Tasks!A1:K');
+
+            // Write headers
+            await this.updateSheetData(spreadsheetId, 'Tasks!A1:K1', [headers]);
+
+            // Write sample tasks
+            await this.updateSheetData(spreadsheetId, 'Tasks!A2:K', sampleTasks);
+
+            // Format headers (bold and center)
+            await this.sheets.spreadsheets.batchUpdate({
+                spreadsheetId,
+                resource: {
+                    requests: [
+                        {
+                            repeatCell: {
+                                range: {
+                                    sheetId: 0,
+                                    startRowIndex: 0,
+                                    endRowIndex: 1,
+                                    startColumnIndex: 0,
+                                    endColumnIndex: 11
+                                },
+                                cell: {
+                                    userEnteredFormat: {
+                                        textFormat: {
+                                            bold: true
+                                        },
+                                        horizontalAlignment: 'CENTER'
+                                    }
+                                },
+                                fields: 'userEnteredFormat(textFormat,horizontalAlignment)'
+                            }
+                        }
+                    ]
+                }
+            });
+
+            console.log('Tasks tab initialized successfully');
+        } catch (error) {
+            console.error('Error initializing Tasks tab:', error);
+            throw error;
+        }
+    }
 }
 
 // Export singleton instance

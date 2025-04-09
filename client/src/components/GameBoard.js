@@ -84,17 +84,44 @@ const GameBoard = () => {
     };
 
     useEffect(() => {
+        // Initial fetch
         fetchGameState();
-        const interval = setInterval(fetchGameState, 1000);
+        
+        // Set up interval with a longer duration to prevent race conditions
+        const interval = setInterval(fetchGameState, 5000); // Changed from 1000 to 5000ms
+        
+        // Clear interval on cleanup
         return () => clearInterval(interval);
     }, []);
 
+    // Add retry mechanism for failed fetches
+    useEffect(() => {
+        if (error) {
+            const retry = setTimeout(() => {
+                fetchGameState();
+            }, 3000); // Retry after 3 seconds
+            return () => clearTimeout(retry);
+        }
+    }, [error]);
+
     if (loading) {
-        return <div className="loading">Loading game state...</div>;
+        return (
+            <div className="loading-container">
+                <div className="loading">Loading game state...</div>
+                <div className="loading-spinner"></div>
+            </div>
+        );
     }
 
     if (error) {
-        return <div className="error">Error: {error}</div>;
+        return (
+            <div className="error-container">
+                <div className="error">Error: {error}</div>
+                <button onClick={fetchGameState} className="retry-button">
+                    Retry
+                </button>
+            </div>
+        );
     }
 
     return (
