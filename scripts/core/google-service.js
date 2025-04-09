@@ -5,6 +5,11 @@
 
 import { google } from 'googleapis';
 import config from './google-config.js';
+import fs from 'fs/promises';
+import path from 'path';
+
+// Token storage path
+const TOKEN_PATH = path.join(__dirname, '../test/token.json');
 
 // Custom error types
 export class GoogleServiceError extends Error {
@@ -68,23 +73,23 @@ export class GoogleService {
             );
 
             // Check if we have a valid token
-            const token = localStorage.getItem('google-token');
-            if (token) {
-                try {
-                    oAuth2Client.setCredentials(JSON.parse(token));
-                    const expiryDate = new Date(JSON.parse(token).expiry_date);
-                    if (expiryDate > new Date()) {
-                        return oAuth2Client;
-                    }
-                } catch (error) {
-                    console.log('Invalid token, will request new one');
+            let token;
+            try {
+                token = JSON.parse(await fs.readFile(TOKEN_PATH, 'utf8'));
+                oAuth2Client.setCredentials(token);
+                const expiryDate = new Date(token.expiry_date);
+                if (expiryDate > new Date()) {
+                    return oAuth2Client;
                 }
+            } catch (error) {
+                console.log('No valid token found, will request new one');
             }
 
             // If no valid token, redirect to auth URL
             const authUrl = oAuth2Client.generateAuthUrl({
                 access_type: 'offline',
-                scope: config.google.scopes
+                scope: config.google.scopes,
+                prompt: 'consent'
             });
 
             throw new AuthError('No valid authentication token found', { authUrl });
@@ -113,7 +118,7 @@ export class GoogleService {
 
             const { tokens } = await oAuth2Client.getToken(code);
             oAuth2Client.setCredentials(tokens);
-            localStorage.setItem('google-token', JSON.stringify(tokens));
+            await fs.writeFile(TOKEN_PATH, JSON.stringify(tokens));
 
             // Initialize sheets API
             this.sheets = google.sheets({ version: 'v4', auth: oAuth2Client });
