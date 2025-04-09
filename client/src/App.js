@@ -1,10 +1,16 @@
 import React from 'react';
+import GameBoard from './components/GameBoard';
+import './styles/App.css';
 
 function App() {
   return (
     <div className="app">
-      <h1>Task Tower</h1>
-      <p>Welcome to Task Tower!</p>
+      <header className="app-header">
+        <h1>Task Tower</h1>
+      </header>
+      <main>
+        <GameBoard />
+      </main>
     </div>
   );
 }

@@ -1,0 +1,154 @@
+.app {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 2rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.app-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.app-header h1 {
+  color: #2c3e50;
+  font-size: 2.5rem;
+  margin: 0;
+}
+
+.game-board {
+  background: white;
+  border-radius: 10px;
+  padding: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.game-board .loading {
+  text-align: center;
+  padding: 2rem;
+  color: #6c757d;
+}
+
+.game-board .error {
+  text-align: center;
+  padding: 2rem;
+  color: #dc3545;
+  background-color: #f8d7da;
+  border-radius: 5px;
+}
+
+.game-info {
+  margin-bottom: 2rem;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.info-item:last-child {
+  border-bottom: none;
+}
+
+.info-item span:first-child {
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+.players-section {
+  margin-bottom: 2rem;
+}
+
+.players-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.player-card {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}
+
+.player-card h3 {
+  margin: 0 0 0.5rem 0;
+  color: #2c3e50;
+}
+
+.player-card p {
+  margin: 0.5rem 0;
+  color: #495057;
+}
+
+.player-actions {
+  margin: 1rem 0;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.player-actions button {
+  flex: 1;
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.player-actions button:hover:not(:disabled) {
+  background: #5a6268;
+}
+
+.player-actions button:disabled {
+  background: #dee2e6;
+  cursor: not-allowed;
+}
+
+.player-tasks {
+  margin-top: 1rem;
+}
+
+.player-tasks ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.player-tasks li {
+  padding: 0.25rem 0;
+  color: #6c757d;
+}
+
+.controls {
+  text-align: center;
+  margin: 2rem 0;
+}
+
+.controls button {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  padding: 0.75rem 2rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.3s;
+  margin: 0 0.5rem;
+}
+
+.controls button:hover:not(:disabled) {
+  background: #45a049;
+}
+
+.controls button:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+}
