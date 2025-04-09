@@ -13,7 +13,11 @@ const EVENT_PRIORITIES = {
     'player-update': 90,
     'task-completion': 80,
     'error': 10,
-    'heartbeat': 5
+    'heartbeat': 5,
+    'sync-request': 95,
+    'sync-response': 95,
+    'recovery-request': 95,
+    'recovery-response': 95
 };
 
 // Conflict resolution strategies
@@ -21,7 +25,25 @@ const CONFLICT_RESOLUTION = {
     'game-state': 'latest',
     'player-update': 'merge',
     'task-completion': 'latest',
-    'error': 'merge'
+    'error': 'merge',
+    'sync-request': 'latest',
+    'sync-response': 'merge',
+    'recovery-request': 'latest',
+    'recovery-response': 'merge'
+};
+
+// Sync window configuration
+const SYNC_WINDOW = {
+    size: 5000, // 5 seconds
+    tolerance: 1000 // 1 second
+};
+
+// Recovery configuration
+const RECOVERY_CONFIG = {
+    maxAttempts: 5,
+    initialDelay: 1000,
+    maxDelay: 30000,
+    backoffFactor: 1.5
 };
 
 export class RealTime {
@@ -32,11 +54,14 @@ export class RealTime {
         this.heartbeatInterval = null;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
-        this.reconnectDelay = 1000; // 1 second
-        this.maxReconnectDelay = 30000; // 30 seconds
+        this.reconnectDelay = 1000;
+        this.maxReconnectDelay = 30000;
         this.eventQueue = [];
         this.lastSyncedState = null;
         this.conflictLog = [];
+        this.syncWindow = new Map();
+        this.recoveryAttempts = 0;
+        this.lastRecovery = null;
     }
 
     async initialize() {
@@ -108,7 +133,8 @@ export class RealTime {
             this.eventQueue.push({
                 ...message,
                 priority: EVENT_PRIORITIES[message.type] || 0,
-                timestamp: new Date().getTime()
+                timestamp: new Date().getTime(),
+                receivedAt: new Date().getTime()
             });
 
             // Process events in order of priority
@@ -117,6 +143,16 @@ export class RealTime {
             // Process highest priority event
             const event = this.eventQueue.shift();
             
+            // Check sync window
+            if (this.isOutOfSync(event)) {
+                await this.handleSyncError({
+                    type: 'out-of-sync',
+                    event: event,
+                    timestamp: new Date().getTime()
+                });
+                return;
+            }
+
             switch (event.type) {
                 case 'game-state':
                     await this.handleGameState(event.data);
@@ -127,19 +163,358 @@ export class RealTime {
                 case 'task-completion':
                     await this.handleTaskCompletion(event.data);
                     break;
-                case 'error':
-                    await this.handleError(event.data);
+                case 'sync-request':
+                    await this.handleSyncRequest(event.data);
                     break;
-                case 'heartbeat':
-                    await this.handleHeartbeat(event.data);
+                case 'sync-response':
+                    await this.handleSyncResponse(event.data);
+                    break;
+                case 'recovery-request':
+                    await this.handleRecoveryRequest(event.data);
+                    break;
+                case 'recovery-response':
+                    await this.handleRecoveryResponse(event.data);
                     break;
                 default:
-                    console.warn('Unknown message type:', event.type);
-                    monitoring.logWarning('Unknown message type', event);
+                    console.warn('Unknown event type:', event.type);
+                    monitoring.logWarning('Unknown event type', event);
             }
+
+            // Update sync window
+            this.updateSyncWindow(event);
         } catch (error) {
-            console.error('Error handling message:', error);
-            monitoring.logError('Message handling error', error);
+            console.error('Error processing message:', error);
+            monitoring.logError('Message processing error', error);
+            await this.recoverFromError(error);
+        }
+    }
+
+    isOutOfSync(event) {
+        const now = new Date().getTime();
+        const eventTime = event.timestamp;
+        const windowStart = now - SYNC_WINDOW.size;
+        const windowEnd = now + SYNC_WINDOW.tolerance;
+
+        return eventTime < windowStart || eventTime > windowEnd;
+    }
+
+    updateSyncWindow(event) {
+        const now = new Date().getTime();
+        const windowStart = now - SYNC_WINDOW.size;
+
+        // Remove old events
+        for (const [timestamp, events] of this.syncWindow) {
+            if (timestamp < windowStart) {
+                this.syncWindow.delete(timestamp);
+            }
+        }
+
+        // Add current event
+        const timestamp = event.timestamp;
+        if (!this.syncWindow.has(timestamp)) {
+            this.syncWindow.set(timestamp, []);
+        }
+        this.syncWindow.get(timestamp).push(event);
+    }
+
+    async handleSyncRequest(data) {
+        try {
+            // Send current state
+            const currentState = {
+                players: gameCore.players,
+                currentRound: gameCore.currentRound,
+                currentPhase: gameCore.currentPhase,
+                phaseTimeRemaining: gameCore.phaseTimeRemaining,
+                timestamp: new Date().getTime()
+            };
+
+            await this.broadcastEvent('sync-response', {
+                ...currentState,
+                requestId: data.requestId
+            });
+        } catch (error) {
+            console.error('Error handling sync request:', error);
+            monitoring.logError('Sync request error', error);
+            throw error;
+        }
+    }
+
+    async handleSyncResponse(data) {
+        try {
+            // Check for conflicts
+            const hasConflict = this.checkStateConflict(data);
+            if (hasConflict) {
+                // Request recovery
+                await this.broadcastEvent('recovery-request', {
+                    type: 'conflict',
+                    timestamp: new Date().getTime(),
+                    conflictData: {
+                        localState: this.lastSyncedState,
+                        remoteState: data
+                    }
+                });
+                return;
+            }
+
+            // Update local state
+            this.lastSyncedState = data;
+            await gameCore.saveGameState();
+        } catch (error) {
+            console.error('Error handling sync response:', error);
+            monitoring.logError('Sync response error', error);
+            throw error;
+        }
+    }
+
+    async handleRecoveryRequest(data) {
+        try {
+            // Check recovery window
+            const now = new Date().getTime();
+            if (this.lastRecovery && 
+                (now - this.lastRecovery) < RECOVERY_CONFIG.maxDelay) {
+                return;
+            }
+
+            // Load saved state
+            const savedState = await dataSync.loadGameState();
+            if (!savedState) {
+                throw new Error('No saved state available for recovery');
+            }
+
+            // Send recovery response
+            await this.broadcastEvent('recovery-response', {
+                state: savedState,
+                timestamp: new Date().getTime(),
+                requestId: data.requestId
+            });
+
+            this.lastRecovery = now;
+        } catch (error) {
+            console.error('Error handling recovery request:', error);
+            monitoring.logError('Recovery request error', error);
+            throw error;
+        }
+    }
+
+    async handleRecoveryResponse(data) {
+        try {
+            // Check for conflicts
+            const hasConflict = this.checkStateConflict(data.state);
+            if (hasConflict) {
+                // Request another recovery
+                await this.broadcastEvent('recovery-request', {
+                    type: 'conflict',
+                    timestamp: new Date().getTime(),
+                    conflictData: {
+                        localState: this.lastSyncedState,
+                        remoteState: data.state
+                    }
+                });
+                return;
+            }
+
+            // Update local state
+            this.lastSyncedState = data.state;
+            await gameCore.saveGameState();
+
+            // Clear recovery attempts
+            this.recoveryAttempts = 0;
+        } catch (error) {
+            console.error('Error handling recovery response:', error);
+            monitoring.logError('Recovery response error', error);
+            throw error;
+        }
+    }
+
+    async checkStateConflict(newState) {
+        try {
+            // Check game state
+            const hasGameConflict = this.checkGameStateConflict(newState);
+            if (hasGameConflict) {
+                return true;
+            }
+
+            // Check player states
+            const hasPlayerConflict = await this.checkPlayerStateConflict(newState);
+            if (hasPlayerConflict) {
+                return true;
+            }
+
+            // Check task states
+            const hasTaskConflict = await this.checkTaskStateConflict(newState);
+            if (hasTaskConflict) {
+                return true;
+            }
+
+            return false;
+        } catch (error) {
+            console.error('Error checking state conflict:', error);
+            monitoring.logError('State conflict check error', error);
+            throw error;
+        }
+    }
+
+    checkGameStateConflict(newState) {
+        const currentState = {
+            currentRound: gameCore.currentRound,
+            currentPhase: gameCore.currentPhase,
+            phaseTimeRemaining: gameCore.phaseTimeRemaining
+        };
+
+        return (
+            newState.currentRound !== currentState.currentRound ||
+            newState.currentPhase !== currentState.currentPhase ||
+            Math.abs(newState.phaseTimeRemaining - currentState.phaseTimeRemaining) > 1000
+        );
+    }
+
+    async checkPlayerStateConflict(newState) {
+        try {
+            const currentPlayers = gameCore.players;
+            const newPlayers = newState.players;
+
+            // Check for missing players
+            const missingPlayers = currentPlayers.some(player => 
+                !newPlayers.find(p => p.id === player.id)
+            );
+            if (missingPlayers) {
+                return true;
+            }
+
+            // Check for conflicting player states
+            for (const currentPlayer of currentPlayers) {
+                const newPlayer = newPlayers.find(p => p.id === currentPlayer.id);
+                if (!newPlayer) continue;
+
+                // Check for score conflicts
+                if (Math.abs(newPlayer.score - currentPlayer.score) > 1) {
+                    return true;
+                }
+
+                // Check for task conflicts
+                const hasTaskConflict = await this.checkPlayerTaskConflict(currentPlayer, newPlayer);
+                if (hasTaskConflict) {
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (error) {
+            console.error('Error checking player state conflict:', error);
+            monitoring.logError('Player state conflict check error', error);
+            throw error;
+        }
+    }
+
+    async checkPlayerTaskConflict(currentPlayer, newPlayer) {
+        try {
+            const currentTasks = currentPlayer.tasks;
+            const newTasks = newPlayer.tasks;
+
+            // Check for missing tasks
+            const missingTasks = currentTasks.some(task => 
+                !newTasks.find(t => t.id === task.id)
+            );
+            if (missingTasks) {
+                return true;
+            }
+
+            // Check for conflicting task states
+            for (const currentTask of currentTasks) {
+                const newTask = newTasks.find(t => t.id === currentTask.id);
+                if (!newTask) continue;
+
+                // Check for completion conflicts
+                if (currentTask.completed !== newTask.completed) {
+                    return true;
+                }
+
+                // Check for subtask conflicts
+                const hasSubtaskConflict = await this.checkSubtaskConflict(currentTask, newTask);
+                if (hasSubtaskConflict) {
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (error) {
+            console.error('Error checking player task conflict:', error);
+            monitoring.logError('Player task conflict check error', error);
+            throw error;
+        }
+    }
+
+    async checkSubtaskConflict(currentTask, newTask) {
+        try {
+            const currentSubtasks = currentTask.subtasks || [];
+            const newSubtasks = newTask.subtasks || [];
+
+            // Check for missing subtasks
+            const missingSubtasks = currentSubtasks.some(subtask => 
+                !newSubtasks.find(s => s.id === subtask.id)
+            );
+            if (missingSubtasks) {
+                return true;
+            }
+
+            // Check for conflicting subtask states
+            for (const currentSubtask of currentSubtasks) {
+                const newSubtask = newSubtasks.find(s => s.id === currentSubtask.id);
+                if (!newSubtask) continue;
+
+                // Check for completion conflicts
+                if (currentSubtask.completed !== newSubtask.completed) {
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (error) {
+            console.error('Error checking subtask conflict:', error);
+            monitoring.logError('Subtask conflict check error', error);
+            throw error;
+        }
+    }
+
+    async checkTaskStateConflict(newState) {
+        try {
+            const currentTasks = gameCore.players.reduce((acc, player) => 
+                [...acc, ...player.tasks], []
+            );
+
+            const newTasks = newState.players.reduce((acc, player) => 
+                [...acc, ...player.tasks], []
+            );
+
+            // Check for missing tasks
+            const missingTasks = currentTasks.some(task => 
+                !newTasks.find(t => t.id === task.id)
+            );
+            if (missingTasks) {
+                return true;
+            }
+
+            // Check for conflicting task states
+            for (const currentTask of currentTasks) {
+                const newTask = newTasks.find(t => t.id === currentTask.id);
+                if (!newTask) continue;
+
+                // Check for completion conflicts
+                if (currentTask.completed !== newTask.completed) {
+                    return true;
+                }
+
+                // Check for subtask conflicts
+                const hasSubtaskConflict = await this.checkSubtaskConflict(currentTask, newTask);
+                if (hasSubtaskConflict) {
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (error) {
+            console.error('Error checking task state conflict:', error);
+            monitoring.logError('Task state conflict check error', error);
             throw error;
         }
     }
@@ -155,7 +530,7 @@ export class RealTime {
             // Update game state
             gameCore.currentRound = gameState.currentRound;
             gameCore.currentPhase = gameState.currentPhase;
-            gameCore.phaseTimeRemaining = gameState.timer;
+            gameCore.phaseTimeRemaining = gameState.phaseTimeRemaining;
             gameCore.players = gameState.players;
 
             // Sync with Google Sheets
@@ -240,6 +615,17 @@ export class RealTime {
         } catch (error) {
             console.error('Error handling error:', error);
             monitoring.logError('Error handling error', error);
+            throw error;
+        }
+    }
+
+    async handleHeartbeat(data) {
+        try {
+            // Update last heartbeat
+            this.lastHeartbeat = data.timestamp;
+        } catch (error) {
+            console.error('Error handling heartbeat:', error);
+            monitoring.logError('Heartbeat error', error);
             throw error;
         }
     }
