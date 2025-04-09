@@ -15,7 +15,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    
+      with:
+        fetch-depth: 0  # Fetch all history for better caching
+        
     # Clean up previous builds
     - name: Clean up
       run: |
@@ -24,6 +26,9 @@ jobs:
         rm -rf node_modules
         rm -rf client/node_modules
         rm -rf server/node_modules
+        rm -rf .npm
+        rm -rf client/.npm
+        rm -rf server/.npm
 
     # Set up Node.js
     - name: Set up Node.js
@@ -31,13 +36,17 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
+        cache-dependency-path: |
+          package-lock.json
+          client/package-lock.json
+          server/package-lock.json
 
     # Install dependencies
     - name: Install dependencies
       run: |
-        npm install
-        cd client && npm install
-        cd ../server && npm install
+        npm ci
+        cd client && npm ci
+        cd ../server && npm ci
 
     # Build Server
     - name: Build Server
