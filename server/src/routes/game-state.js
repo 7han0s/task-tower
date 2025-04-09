@@ -17,13 +17,28 @@ router.get('/', async (req, res) => {
         // Get game state
         const gameStateData = await googleService.getSheetData(spreadsheetId, 'Game State!A2:E2');
         if (!gameStateData || gameStateData.length === 0) {
-            throw new Error('No game state found');
+            // Return default empty state if no data exists
+            return res.json({
+                lobbyCode: '',
+                currentPhase: '',
+                currentRound: 0,
+                timer: 0,
+                playerCount: 0,
+                players: []
+            });
         }
 
         // Get player data
         const playerData = await googleService.getSheetData(spreadsheetId, 'Player Data!A2:E');
         if (!playerData) {
-            throw new Error('No player data found');
+            return res.json({
+                lobbyCode: gameStateData[0][0],
+                currentPhase: gameStateData[0][1],
+                currentRound: gameStateData[0][2],
+                timer: gameStateData[0][3],
+                playerCount: gameStateData[0][4],
+                players: []
+            });
         }
 
         // Parse player data

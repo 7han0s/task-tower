@@ -1,12 +1,20 @@
 const express = require('express');
 const { google } = require('googleapis');
 const dotenv = require('dotenv');
+const cors = require('cors');
 const { googleService } = require('./src/google-service');
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3001;
+
+// Enable CORS for all routes
+app.use(cors({
+    origin: 'http://localhost:8081',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Middleware
 app.use(express.json());

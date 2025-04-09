@@ -172,3 +172,70 @@ server/
 - Batch processing
 - Efficient error handling
 - Resource management
+
+## 9. Key Features
+
+### 9.1 Game Controls
+- **Start Game**: Initiates a new game session
+- **Pause Game**: Temporarily halts the game (disabled when game is paused)
+- **Resume Game**: Restarts the game from a paused state (only visible when game is paused)
+- **Reset Game**: Clears all game data and returns to initial state (disabled when game is not running)
+
+### 9.2 Player Actions
+- **Add Block**: Adds a block to the player's tower (disabled when not in work phase)
+- **Remove Block**: Removes a block from the tower (disabled when no blocks or not in work phase)
+- **Complete Task**: Marks a task as complete and awards points (only appears when tasks are available)
+
+### 9.3 Game State Management
+- Real-time game state updates every second
+- Phase tracking (work, paused)
+- Round counter
+- Timer management
+- Player score tracking
+- Task management
+- Tower block tracking
+
+## 10. Technical Implementation
+
+### 10.1 Client-Side (React)
+- Modern React components with hooks
+- Axios for API communication
+- CSS styling with modern design principles
+- Loading states and error handling
+- Responsive layout for all screen sizes
+
+### 10.2 Server-Side (Node.js/Express)
+- Express.js framework
+- Google Sheets API integration
+- CORS enabled for client-server communication
+- Error handling middleware
+- Health check endpoint
+
+### 10.3 Data Flow
+1. Client makes requests to `/api/game-state` endpoints
+2. Server fetches/updates data from Google Sheets
+3. Data is processed and returned to client
+4. Client updates UI based on new game state
+
+## 11. Environment Configuration
+- Server runs on port 3001
+- Client runs on port 8081
+- Google Sheets integration requires:
+  - GOOGLE_CREDENTIALS
+  - GOOGLE_SPREADSHEET_ID
+
+## 12. Error Handling
+- Client-side error states for failed API requests
+- Server-side error handling for:
+  - Missing data
+  - Invalid requests
+  - Google API errors
+  - Internal server errors
+
+## 13. Future Enhancements
+- Add more game phases
+- Implement player authentication
+- Add more tower block types
+- Implement task difficulty levels
+- Add scoring system variations
+- Implement game history tracking
