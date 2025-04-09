@@ -19,8 +19,13 @@ export class DataSync {
             await gameSheets.initialize();
             this.startSyncLoop();
             console.log('Data synchronization initialized');
+            return true;
         } catch (error) {
             console.error('Error initializing data sync:', error);
+            this.handleError({
+                ...error,
+                type: 'Initialization'
+            });
             throw error;
         }
     }
@@ -31,6 +36,10 @@ export class DataSync {
                 await this.syncData();
             } catch (error) {
                 console.error('Error in sync loop:', error);
+                this.handleError({
+                    ...error,
+                    type: 'SyncLoop'
+                });
             }
         }, 5000); // Sync every 5 seconds
 
@@ -53,6 +62,9 @@ export class DataSync {
                 players: gameCore.players
             };
 
+            // Validate game state
+            gameSheets.validateGameState(gameState);
+
             // Process sync queue
             while (this.syncQueue.length > 0) {
                 const { type, data } = this.syncQueue.shift();
@@ -71,33 +83,54 @@ export class DataSync {
             }
 
             console.log('Data synchronization completed successfully');
+            return true;
         } catch (error) {
             console.error('Error during data sync:', error);
+            this.handleError({
+                ...error,
+                type: 'SyncData'
+            });
+            
             // Retry failed syncs
             this.syncQueue.unshift({ type: 'retry', data: { error } });
+            throw error;
         } finally {
             this.isSyncing = false;
         }
     }
 
     async handleSyncEvent(type, data) {
-        switch (type) {
-            case 'player-update':
-                await this.handlePlayerUpdate(data);
-                break;
-            case 'game-state':
-                await this.handleGameStateUpdate(data);
-                break;
-            case 'error':
-                await this.handleError(data);
-                break;
-            default:
-                console.warn('Unknown sync event type:', type);
+        try {
+            switch (type) {
+                case 'player-update':
+                    await this.handlePlayerUpdate(data);
+                    break;
+                case 'game-state':
+                    await this.handleGameStateUpdate(data);
+                    break;
+                case 'error':
+                    await this.handleError(data);
+                    break;
+                default:
+                    console.warn('Unknown sync event type:', type);
+                    throw new Error(`Unknown sync event type: ${type}`);
+            }
+        } catch (error) {
+            console.error('Error handling sync event:', error);
+            this.handleError({
+                ...error,
+                type: 'HandleSyncEvent',
+                eventType: type
+            });
+            throw error;
         }
     }
 
     async handlePlayerUpdate(playerData) {
         try {
+            // Validate player data
+            gameSheets.validatePlayerData(playerData);
+
             // Update player data in sheets
             await gameSheets.updateSheetData('Player Data!A2:E', [
                 [
@@ -108,14 +141,22 @@ export class DataSync {
                     JSON.stringify(playerData.towerBlocks)
                 ]
             ]);
+            return true;
         } catch (error) {
             console.error('Error updating player data:', error);
+            this.handleError({
+                ...error,
+                type: 'HandlePlayerUpdate'
+            });
             throw error;
         }
     }
 
     async handleGameStateUpdate(gameState) {
         try {
+            // Validate game state
+            gameSheets.validateGameState(gameState);
+
             // Update game state in sheets
             await gameSheets.updateSheetData('Game State!A2:E2', [
                 [
@@ -126,43 +167,57 @@ export class DataSync {
                     gameState.playerCount
                 ]
             ]);
+            return true;
         } catch (error) {
             console.error('Error updating game state:', error);
+            this.handleError({
+                ...error,
+                type: 'HandleGameStateUpdate'
+            });
             throw error;
         }
     }
 
     async handleError(errorData) {
         try {
-            // Log error to sheets
-            await gameSheets.updateSheetData('Error Log!A1:D1', [
-                ['Timestamp', 'Error Type', 'Error Message', 'Stack Trace']
-            ]);
+            // Log error
+            console.error('Data Sync Error:', {
+                timestamp: new Date().toISOString(),
+                error: errorData.error,
+                type: errorData.type,
+                stack: errorData.stack,
+                context: errorData.context
+            });
 
-            await gameSheets.updateSheetData('Error Log!A2:D', [
-                [
-                    new Date().toISOString(),
-                    errorData.type,
-                    errorData.message,
-                    errorData.stack
-                ]
-            ]);
+            // Retry mechanism
+            if (errorData.retryCount < 3) {
+                errorData.retryCount = (errorData.retryCount || 0) + 1;
+                setTimeout(() => {
+                    this.syncData();
+                }, 1000 * errorData.retryCount);
+            }
+
+            // Notify monitoring system
+            if (window.monitoring) {
+                monitoring.notifyError('Data Sync', errorData);
+            }
+
+            // Attempt recovery
+            if (errorData.type === 'SyncData') {
+                await this.recoverFromError(errorData);
+            }
         } catch (error) {
-            console.error('Error logging error:', error);
+            console.error('Error handling error:', error);
+            throw error;
         }
     }
 
     addSyncEvent(type, data) {
-        this.syncQueue.push({ type, data });
-    }
+        // Validate sync event
+        if (!type) throw new Error('Sync event type is required');
+        if (!data) throw new Error('Sync event data is required');
 
-    stopSync() {
-        if (this.syncInterval) {
-            clearInterval(this.syncInterval);
-            this.syncInterval = null;
-        }
-        this.isSyncing = false;
-        this.syncQueue = [];
+        this.syncQueue.push({ type, data });
     }
 
     async recoverFromError(error) {
@@ -172,13 +227,28 @@ export class DataSync {
             if (savedState) {
                 gameCore.loadGameState(savedState);
                 console.log('Recovered from error using saved state');
+                return true;
             } else {
                 console.warn('No saved state found for recovery');
+                throw new Error('No saved state available for recovery');
             }
         } catch (recoveryError) {
             console.error('Error during recovery:', recoveryError);
+            this.handleError({
+                ...recoveryError,
+                type: 'Recovery'
+            });
             throw recoveryError;
         }
+    }
+
+    stopSync() {
+        if (this.syncInterval) {
+            clearInterval(this.syncInterval);
+            this.syncInterval = null;
+        }
+        this.isSyncing = false;
+        this.syncQueue = [];
     }
 }
 

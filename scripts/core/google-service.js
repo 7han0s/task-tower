@@ -6,20 +6,121 @@
 import { google } from 'googleapis';
 import config from './google-config.js';
 
+// Error types
+const ERROR_TYPES = {
+    AUTH: {
+        INVALID_TOKEN: 'InvalidToken',
+        AUTH_CALLBACK: 'AuthCallback',
+        TOKEN_EXPIRED: 'TokenExpired',
+        AUTH_FAILED: 'AuthFailed'
+    },
+    SHEETS: {
+        GET_DATA: 'GetSheetData',
+        UPDATE_DATA: 'UpdateSheetData',
+        CLEAR_DATA: 'ClearSheetData',
+        CREATE_SHEET: 'CreateSheet',
+        SHEET_NOT_FOUND: 'SheetNotFound'
+    },
+    NETWORK: {
+        TIMEOUT: 'NetworkTimeout',
+        CONNECTION: 'NetworkConnection',
+        RATE_LIMIT: 'RateLimit'
+    },
+    VALIDATION: {
+        INVALID_DATA: 'InvalidData',
+        MISSING_REQUIRED: 'MissingRequired',
+        INVALID_FORMAT: 'InvalidFormat'
+    },
+    SYSTEM: {
+        INITIALIZATION: 'Initialization',
+        CONFIGURATION: 'Configuration',
+        RESOURCE_LIMIT: 'ResourceLimit'
+    },
+    RECOVERY: {
+        FAILED_RECOVERY: 'FailedRecovery',
+        NO_BACKUP: 'NoBackupAvailable',
+        CORRUPTED_DATA: 'CorruptedData'
+    }
+};
+
+export class GoogleServiceError extends Error {
+    constructor(message, type, context = {}) {
+        super(message);
+        this.name = 'GoogleServiceError';
+        this.type = type;
+        this.context = context;
+        this.timestamp = new Date().toISOString();
+    }
+}
+
 export class GoogleService {
     constructor() {
         this.auth = null;
         this.sheets = null;
+        this.errorCount = 0;
+        this.lastErrorTime = null;
     }
 
     async initialize() {
         try {
             this.auth = await this.getAuth();
+            if (!this.auth) {
+                throw new GoogleServiceError(
+                    'Authentication failed',
+                    ERROR_TYPES.AUTH.AUTH_FAILED
+                );
+            }
             this.sheets = google.sheets({ version: 'v4', auth: this.auth });
             console.log('Google API initialized successfully');
+            return true;
         } catch (error) {
             console.error('Error initializing Google API:', error);
+            this.handleError(error);
             throw error;
+        }
+    }
+
+    handleError(error) {
+        // Log error
+        console.error('Google Service Error:', {
+            timestamp: error.timestamp || new Date().toISOString(),
+            error: error.message,
+            type: error.type,
+            stack: error.stack,
+            context: error.context
+        });
+
+        // Rate limiting
+        const now = new Date();
+        if (this.lastErrorTime && (now - this.lastErrorTime) < 1000) {
+            this.errorCount++;
+            if (this.errorCount > 5) {
+                throw new GoogleServiceError(
+                    'Too many errors in short time',
+                    ERROR_TYPES.SYSTEM.RESOURCE_LIMIT
+                );
+            }
+        } else {
+            this.errorCount = 1;
+        }
+        this.lastErrorTime = now;
+
+        // Retry mechanism
+        if (error.retryCount < 3) {
+            error.retryCount = (error.retryCount || 0) + 1;
+            const retryDelay = 1000 * Math.pow(2, error.retryCount);
+            setTimeout(() => {
+                this.initialize();
+            }, retryDelay);
+        }
+
+        // Notify monitoring system
+        if (window.monitoring) {
+            monitoring.notifyError('Google Service', {
+                type: error.type,
+                message: error.message,
+                context: error.context
+            });
         }
     }
 
@@ -41,6 +142,10 @@ export class GoogleService {
                 }
             } catch (error) {
                 console.log('Invalid token, will request new one');
+                this.handleError({
+                    ...error,
+                    type: ERROR_TYPES.AUTH.INVALID_TOKEN
+                });
             }
         }
 
@@ -51,7 +156,7 @@ export class GoogleService {
         });
 
         window.location.href = authUrl;
-        return null; // Will be handled by callback
+        return null;
     }
 
     async handleCallback(code) {
@@ -71,6 +176,10 @@ export class GoogleService {
             return true;
         } catch (error) {
             console.error('Error handling Google callback:', error);
+            this.handleError({
+                ...error,
+                type: ERROR_TYPES.AUTH.AUTH_CALLBACK
+            });
             return false;
         }
     }
@@ -84,6 +193,11 @@ export class GoogleService {
             return response.data.values;
         } catch (error) {
             console.error('Error getting sheet data:', error);
+            this.handleError({
+                ...error,
+                type: ERROR_TYPES.SHEETS.GET_DATA,
+                range: range
+            });
             throw error;
         }
     }
@@ -98,6 +212,12 @@ export class GoogleService {
             });
         } catch (error) {
             console.error('Error updating sheet data:', error);
+            this.handleError({
+                ...error,
+                type: ERROR_TYPES.SHEETS.UPDATE_DATA,
+                range: range,
+                values: values
+            });
             throw error;
         }
     }
