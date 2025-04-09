@@ -1,8 +1,4 @@
-scripts/test/service-account.json
-scripts/test/credentials.json
-node_modules/
-
-# Node modules
+# Dependencies
 node_modules/
 
 # Build outputs
@@ -16,6 +12,13 @@ server/dist/
 .env.test.local
 .env.production.local
 
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
 # IDE files
 .idea/
 .vscode/
@@ -26,31 +29,35 @@ server/dist/
 .DS_Store
 Thumbs.db
 
-# Logs
-logs/
-*.log
-
 # Test coverage
 coverage/
-
-# Debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Client build
-client/build/
-client/.next/
-
-# Server build
-server/build/
-
-# Cache
-cache/
-
-# Local development
-*.local
 
 # Temporary files
 *.tmp
 *.temp
+
+# Package lock files
+client/package-lock.json
+server/package-lock.json
+
+# Build artifacts
+*.map
+*.gz
+*.br
+*.zip
+*.tar.gz
+
+# Large files
+*.iso
+*.img
+*.dmg
+*.vhd
+*.vhdx
+*.vmdk
+*.qcow2
+*.ova
+*.ovf
+*.raw
+*.wim
+*.swm
+*.esd

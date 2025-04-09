@@ -2,9 +2,9 @@ name: Build and Deploy
 
 on:
   push:
-    branches: [ main ]
+    branches: [ dev-testing ]
   pull_request:
-    branches: [ main ]
+    branches: [ dev-testing ]
 
 env:
   GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
@@ -22,18 +22,39 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
+    # Clean up previous builds
+    - name: Clean up
+      run: |
+        rm -rf client/dist
+        rm -rf server/dist
+        rm -rf node_modules
+        rm -rf client/node_modules
+        rm -rf server/node_modules
+
+    # Set up Node.js
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    # Install dependencies
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd client && npm ci
+        cd ../server && npm ci
+
     # Build Server
     - name: Build Server
       run: |
         cd server
-        npm ci
         npm run build
 
     # Build Client
     - name: Build Client
       run: |
         cd client
-        npm ci
         npm run build
 
     # Test Server
@@ -50,7 +71,7 @@ jobs:
 
     # Deploy
     - name: Deploy
-      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/dev-testing'
       uses: actions/github-script@v6
       with:
         script: |
