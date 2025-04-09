@@ -4,6 +4,7 @@
  */
 
 const { google } = require('googleapis');
+const { JWT } = require('google-auth-library');
 const dotenv = require('dotenv');
 
 dotenv.config();
@@ -13,29 +14,33 @@ dotenv.config();
  */
 class GoogleService {
     constructor() {
-        this.sheets = google.sheets({ version: 'v4' });
-        this.client = null;
+        this.sheets = null;
+        this.isConfigured = false;
     }
 
     /**
      * Initialize Google Sheets API
      */
-    async initialize() {
+    async init() {
         try {
-            if (this.client) {
-                return { sheets: this.sheets, client: this.client };
+            if (!process.env.GOOGLE_CREDENTIALS || !process.env.GOOGLE_SPREADSHEET_ID) {
+                throw new Error('Google credentials not configured');
             }
 
-            const auth = new google.auth.GoogleAuth({
-                credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS),
+            const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+            const client = new JWT({
+                email: credentials.client_email,
+                key: credentials.private_key,
                 scopes: ['https://www.googleapis.com/auth/spreadsheets']
             });
 
-            this.client = await auth.getClient();
-            return { sheets: this.sheets, client: this.client };
+            this.sheets = google.sheets({ version: 'v4', auth: client });
+            this.isConfigured = true;
+            return true;
         } catch (error) {
-            console.error('Error initializing Google Sheets API:', error);
-            throw new Error('Error initializing Google Sheets API');
+            console.error('Error initializing Google Service:', error);
+            this.isConfigured = false;
+            throw error;
         }
     }
 
@@ -47,10 +52,11 @@ class GoogleService {
      */
     async getSheetData(spreadsheetId, range) {
         try {
-            const { sheets, client } = await this.initialize();
-            
-            const response = await sheets.spreadsheets.values.get({
-                auth: client,
+            if (!this.isConfigured) {
+                await this.init();
+            }
+
+            const response = await this.sheets.spreadsheets.values.get({
                 spreadsheetId,
                 range
             });
@@ -58,7 +64,7 @@ class GoogleService {
             return response.data.values || [];
         } catch (error) {
             console.error('Error getting sheet data:', error);
-            throw new Error('Error getting sheet data');
+            throw error;
         }
     }
 
@@ -71,10 +77,11 @@ class GoogleService {
      */
     async updateSheetData(spreadsheetId, range, values) {
         try {
-            const { sheets, client } = await this.initialize();
-            
-            await sheets.spreadsheets.values.update({
-                auth: client,
+            if (!this.isConfigured) {
+                await this.init();
+            }
+
+            await this.sheets.spreadsheets.values.update({
                 spreadsheetId,
                 range,
                 valueInputOption: 'RAW',
@@ -82,7 +89,7 @@ class GoogleService {
             });
         } catch (error) {
             console.error('Error updating sheet data:', error);
-            throw new Error('Error updating sheet data');
+            throw error;
         }
     }
 
@@ -94,20 +101,22 @@ class GoogleService {
      */
     async clearSheetData(spreadsheetId, range) {
         try {
-            const { sheets, client } = await this.initialize();
-            
-            await sheets.spreadsheets.values.clear({
-                auth: client,
+            if (!this.isConfigured) {
+                await this.init();
+            }
+
+            await this.sheets.spreadsheets.values.clear({
                 spreadsheetId,
                 range
             });
         } catch (error) {
             console.error('Error clearing sheet data:', error);
-            throw new Error('Error clearing sheet data');
+            throw error;
         }
     }
 }
 
 // Export singleton instance
-const googleService = new GoogleService();
-module.exports = { googleService };
+module.exports = {
+    googleService: new GoogleService()
+};

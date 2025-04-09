@@ -1,13 +1,24 @@
+require('dotenv').config();
 const express = require('express');
-const { google } = require('googleapis');
-const dotenv = require('dotenv');
 const cors = require('cors');
+const { google } = require('googleapis');
 const { googleService } = require('./src/google-service');
 
-dotenv.config();
-
 const app = express();
-const port = process.env.PORT || 3001;
+
+// Initialize Google Service
+async function initializeServer() {
+    try {
+        await googleService.init();
+        console.log('Google Service initialized successfully');
+    } catch (error) {
+        console.error('Failed to initialize Google Service:', error);
+        process.exit(1);
+    }
+}
+
+// Start server initialization
+initializeServer();
 
 // Enable CORS for all routes
 app.use(cors({
@@ -18,47 +29,29 @@ app.use(cors({
 
 // Middleware
 app.use(express.json());
-
-// Basic health check
-app.get('/', (req, res) => {
-    const status = {
-        status: 'ok',
-        message: 'Task Tower Server is running',
-        environment: process.env.NODE_ENV,
-        port: port
-    };
-    
-    // Add Google API status if credentials are configured
-    if (process.env.GOOGLE_CREDENTIALS && process.env.GOOGLE_SPREADSHEET_ID) {
-        try {
-            const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-            status.googleApi = {
-                status: 'configured',
-                spreadsheetId: process.env.GOOGLE_SPREADSHEET_ID,
-                credentials: {
-                    projectId: credentials.project_id,
-                    clientId: credentials.client_id
-                }
-            };
-        } catch (error) {
-            status.googleApi = {
-                status: 'error',
-                message: 'Invalid Google credentials format',
-                error: error.message
-            };
-        }
-    } else {
-        status.googleApi = {
-            status: 'not configured',
-            message: 'Please set GOOGLE_CREDENTIALS and GOOGLE_SPREADSHEET_ID in your environment variables'
-        };
-    }
-
-    res.json(status);
-});
+app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use('/api/game-state', require('./src/routes/game-state'));
+const gameStateRouter = require('./src/routes/game-state');
+app.use('/api/game-state', gameStateRouter);
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        message: 'Task Tower Server is running',
+        environment: process.env.NODE_ENV || 'development',
+        port: process.env.PORT || 3001,
+        googleApi: {
+            status: googleService.isConfigured ? 'configured' : 'not configured',
+            spreadsheetId: process.env.GOOGLE_SPREADSHEET_ID,
+            credentials: {
+                projectId: process.env.GOOGLE_CREDENTIALS ? JSON.parse(process.env.GOOGLE_CREDENTIALS).project_id : null,
+                clientId: process.env.GOOGLE_CREDENTIALS ? JSON.parse(process.env.GOOGLE_CREDENTIALS).client_id : null
+            }
+        }
+    });
+});
 
 // API Routes
 app.get('/api/sheets', async (req, res) => {
@@ -130,18 +123,13 @@ app.get('/api/sheets', async (req, res) => {
 app.use((err, req, res, next) => {
     console.error('Error:', err);
     res.status(500).json({
-        error: 'Internal server error',
-        details: process.env.NODE_ENV === 'development' ? {
-            message: err.message,
-            stack: err.stack
-        } : undefined
+        error: 'Internal Server Error',
+        message: err.message
     });
 });
 
 // Start server
-app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-    if (!process.env.GOOGLE_CREDENTIALS || !process.env.GOOGLE_SPREADSHEET_ID) {
-        console.warn('Warning: Google credentials not configured. Some features may not work.');
-    }
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });

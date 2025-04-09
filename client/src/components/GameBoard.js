@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
+const API_URL = 'http://localhost:3001/api/game-state';
+
 const GameBoard = () => {
     const [gameState, setGameState] = useState({
         lobbyCode: '',
@@ -10,220 +12,155 @@ const GameBoard = () => {
         playerCount: 0,
         players: []
     });
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-
-    useEffect(() => {
-        // Fetch initial game state
-        fetchGameState();
-
-        // Set up interval to update game state every second
-        const interval = setInterval(fetchGameState, 1000);
-
-        // Cleanup interval on unmount
-        return () => clearInterval(interval);
-    }, []);
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(true);
 
     const fetchGameState = async () => {
         try {
-            setLoading(true);
-            setError(null);
-            const response = await axios.get('http://localhost:3001/api/game-state');
+            const response = await axios.get(API_URL);
             setGameState(response.data);
-        } catch (error) {
-            console.error('Error fetching game state:', error);
-            setError('Failed to fetch game state');
+            setError('');
+        } catch (err) {
+            console.error('Error fetching game state:', err);
+            setError(err.message);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleStartGame = async () => {
+    const startGame = async () => {
         try {
-            setLoading(true);
-            await axios.post('http://localhost:3001/api/game-state', {
+            await axios.post(API_URL, {
                 gameState: {
-                    lobbyCode: gameState.lobbyCode || 'LOBBY123',
+                    lobbyCode: 'GAME123',
                     currentPhase: 'work',
                     currentRound: 1,
-                    timer: 1500,
-                    playerCount: gameState.players.length
+                    timer: 60,
+                    playerCount: 1,
+                    players: [{
+                        id: 1,
+                        name: 'Player 1',
+                        score: 0,
+                        tasks: [{ id: 1, description: 'Sample Task', completed: false }],
+                        towerBlocks: []
+                    }]
                 }
             });
-        } catch (error) {
-            console.error('Error starting game:', error);
-            setError('Failed to start game');
-        } finally {
-            setLoading(false);
+            fetchGameState();
+        } catch (err) {
+            console.error('Error starting game:', err);
+            setError(err.message);
         }
     };
 
-    const handlePauseGame = async (playerId, reason) => {
+    const handlePlayerAction = async (action) => {
         try {
-            setLoading(true);
-            await axios.post('http://localhost:3001/api/game-state/pause', {
-                playerId,
-                reason
-            });
-        } catch (error) {
-            console.error('Error pausing game:', error);
-            setError('Failed to pause game');
-        } finally {
-            setLoading(false);
+            const updatedGameState = { ...gameState };
+            const player = updatedGameState.players[0];
+
+            switch (action) {
+                case 'addBlock':
+                    player.towerBlocks.push({ id: Date.now(), type: 'default' });
+                    break;
+                case 'removeBlock':
+                    if (player.towerBlocks.length > 0) {
+                        player.towerBlocks.pop();
+                    }
+                    break;
+                case 'completeTask':
+                    if (player.tasks.length > 0 && !player.tasks[0].completed) {
+                        player.tasks[0].completed = true;
+                        player.score += 10;
+                    }
+                    break;
+            }
+
+            await axios.post(API_URL, { gameState: updatedGameState });
+            fetchGameState();
+        } catch (err) {
+            console.error('Error handling player action:', err);
+            setError(err.message);
         }
     };
 
-    const handleResumeGame = async () => {
-        try {
-            setLoading(true);
-            await axios.post('http://localhost:3001/api/game-state/resume');
-        } catch (error) {
-            console.error('Error resuming game:', error);
-            setError('Failed to resume game');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleResetGame = async () => {
-        try {
-            setLoading(true);
-            await axios.post('http://localhost:3001/api/game-state/reset', {
-                lobbyCode: gameState.lobbyCode
-            });
-        } catch (error) {
-            console.error('Error resetting game:', error);
-            setError('Failed to reset game');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handlePlayerAction = async (playerId, action, data) => {
-        try {
-            setLoading(true);
-            await axios.post('http://localhost:3001/api/game-state/player/action', {
-                playerId,
-                action,
-                data
-            });
-        } catch (error) {
-            console.error('Error processing player action:', error);
-            setError('Failed to process player action');
-        } finally {
-            setLoading(false);
-        }
-    };
+    useEffect(() => {
+        fetchGameState();
+        const interval = setInterval(fetchGameState, 1000);
+        return () => clearInterval(interval);
+    }, []);
 
     if (loading) {
-        return (
-            <div className="game-board">
-                <div className="loading">Loading...</div>
-            </div>
-        );
+        return <div className="loading">Loading game state...</div>;
     }
 
     if (error) {
-        return (
-            <div className="game-board">
-                <div className="error">{error}</div>
-            </div>
-        );
+        return <div className="error">Error: {error}</div>;
     }
 
     return (
         <div className="game-board">
-            <div className="game-info">
-                <h2>Game Information</h2>
-                <div className="info-item">
-                    <span>Lobby Code:</span>
-                    <span>{gameState.lobbyCode}</span>
-                </div>
-                <div className="info-item">
-                    <span>Phase:</span>
-                    <span>{gameState.currentPhase}</span>
-                </div>
-                <div className="info-item">
-                    <span>Round:</span>
-                    <span>{gameState.currentRound}</span>
-                </div>
-                <div className="info-item">
-                    <span>Time Remaining:</span>
-                    <span>{gameState.timer}s</span>
-                </div>
-                <div className="info-item">
-                    <span>Player Count:</span>
-                    <span>{gameState.playerCount}</span>
-                </div>
-            </div>
-
-            <div className="controls">
-                <button 
-                    onClick={handleStartGame} 
+            <div className="game-controls">
+                <button
+                    onClick={startGame}
                     disabled={gameState.currentPhase !== ''}
                 >
                     Start Game
                 </button>
-                <button 
-                    onClick={() => handlePauseGame(gameState.players[0]?.id, 'Break time')}
-                    disabled={gameState.currentPhase === 'paused'}
+                <button
+                    onClick={() => handlePlayerAction('addBlock')}
+                    disabled={gameState.currentPhase !== 'work'}
                 >
-                    Pause Game
+                    Add Block
                 </button>
-                <button 
-                    onClick={handleResumeGame}
-                    disabled={gameState.currentPhase !== 'paused'}
+                <button
+                    onClick={() => handlePlayerAction('removeBlock')}
+                    disabled={gameState.currentPhase !== 'work' || gameState.players[0]?.towerBlocks.length === 0}
                 >
-                    Resume Game
+                    Remove Block
                 </button>
-                <button 
-                    onClick={handleResetGame}
-                    disabled={gameState.currentPhase === ''}
+                <button
+                    onClick={() => handlePlayerAction('completeTask')}
+                    disabled={gameState.currentPhase !== 'work' || gameState.players[0]?.tasks[0]?.completed}
                 >
-                    Reset Game
+                    Complete Task
                 </button>
             </div>
 
-            <div className="players-section">
-                <h2>Players</h2>
-                <div className="players-list">
-                    {gameState.players.map((player) => (
-                        <div key={player.id} className="player-card">
-                            <h3>{player.name}</h3>
-                            <p>Score: {player.score}</p>
-                            <div className="player-actions">
-                                <button 
-                                    onClick={() => handlePlayerAction(player.id, 'add-block', { block: 'block1' })}
-                                    disabled={gameState.currentPhase !== 'work'}
+            <div className="game-info">
+                <div className="phase">Phase: {gameState.currentPhase}</div>
+                <div className="round">Round: {gameState.currentRound}</div>
+                <div className="timer">Time: {gameState.timer}s</div>
+            </div>
+
+            <div className="player-info">
+                <h3>Player Information</h3>
+                {gameState.players.map((player, index) => (
+                    <div key={index} className="player-card">
+                        <div className="player-name">{player.name}</div>
+                        <div className="player-score">Score: {player.score}</div>
+                        <div className="player-tasks">
+                            <h4>Tasks:</h4>
+                            {player.tasks.map((task, taskIndex) => (
+                                <div
+                                    key={taskIndex}
+                                    className={`task ${task.completed ? 'completed' : ''}`}
                                 >
-                                    Add Block
-                                </button>
-                                <button 
-                                    onClick={() => handlePlayerAction(player.id, 'remove-block', { block: player.towerBlocks[0] })}
-                                    disabled={gameState.currentPhase !== 'work' || !player.towerBlocks.length}
-                                >
-                                    Remove Block
-                                </button>
-                                {player.tasks.length > 0 && (
-                                    <button 
-                                        onClick={() => handlePlayerAction(player.id, 'complete-task', { task: player.tasks[0], points: 10 })}
-                                        disabled={gameState.currentPhase !== 'work'}
-                                    >
-                                        Complete Task
-                                    </button>
-                                )}
-                            </div>
-                            <div className="player-tasks">
-                                <h4>Tasks:</h4>
-                                <ul>
-                                    {player.tasks.map((task, index) => (
-                                        <li key={index}>{task}</li>
-                                    ))}
-                                </ul>
+                                    {task.description}
+                                </div>
+                            ))}
+                        </div>
+                        <div className="player-tower">
+                            <h4>Tower Blocks:</h4>
+                            <div className="tower-container">
+                                {player.towerBlocks.map((block, blockIndex) => (
+                                    <div key={blockIndex} className="tower-block">
+                                        {block.type}
+                                    </div>
+                                ))}
                             </div>
                         </div>
-                    ))}
-                </div>
+                    </div>
+                ))}
             </div>
         </div>
     );
