@@ -1,5 +1,6 @@
 const backupManager = require('./backup-manager');
 const { google } = require('googleapis');
+const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 // Existing spreadsheet ID

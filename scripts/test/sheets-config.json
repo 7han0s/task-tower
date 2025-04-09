@@ -4,7 +4,7 @@
   "sheets": {
     "gameState": {
       "name": "Game State",
-      "range": "A1:E1",
+      "range": "A2:E2",
       "headers": [
         "Round",
         "Phase",
@@ -20,6 +20,22 @@
         "Name",
         "Score",
         "Tasks"
+      ]
+    },
+    "tasks": {
+      "name": "Tasks",
+      "range": "A2:J",
+      "headers": [
+        "ID",
+        "Title",
+        "Description",
+        "Category",
+        "Complexity",
+        "Points",
+        "Status",
+        "Created At",
+        "Completed At",
+        "Assigned To"
       ]
     }
   }
