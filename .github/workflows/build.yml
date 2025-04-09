@@ -13,12 +13,6 @@ jobs:
       matrix:
         node-version: [18]
 
-    env:
-      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-      GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
-      REACT_APP_API_URL: ${{ secrets.API_URL }}
-      REACT_APP_GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
-
     steps:
     - uses: actions/checkout@v3
     
@@ -49,33 +43,33 @@ jobs:
     - name: Build Server
       run: |
         cd server
-        npm run build
+        GOOGLE_CREDENTIALS=${{ secrets.GOOGLE_CREDENTIALS }} GOOGLE_SPREADSHEET_ID=${{ secrets.GOOGLE_SPREADSHEET_ID }} npm run build
 
     # Build Client
     - name: Build Client
       run: |
         cd client
-        npm run build
+        REACT_APP_API_URL=${{ secrets.API_URL }} REACT_APP_GOOGLE_SPREADSHEET_ID=${{ secrets.GOOGLE_SPREADSHEET_ID }} npm run build
 
     # Test Server
     - name: Test Server
       run: |
         cd server
-        npm test
+        GOOGLE_CREDENTIALS=${{ secrets.GOOGLE_CREDENTIALS }} GOOGLE_SPREADSHEET_ID=${{ secrets.GOOGLE_SPREADSHEET_ID }} npm test
 
     # Test Client
     - name: Test Client
       run: |
         cd client
-        npm test
+        REACT_APP_API_URL=${{ secrets.API_URL }} REACT_APP_GOOGLE_SPREADSHEET_ID=${{ secrets.GOOGLE_SPREADSHEET_ID }} npm test
 
     # Deploy
     - name: Deploy
       if: github.ref == 'refs/heads/dev-testing'
       run: |
         cd server
-        npm run build
+        GOOGLE_CREDENTIALS=${{ secrets.GOOGLE_CREDENTIALS }} GOOGLE_SPREADSHEET_ID=${{ secrets.GOOGLE_SPREADSHEET_ID }} npm run build
         cd ../client
-        npm run build
+        REACT_APP_API_URL=${{ secrets.API_URL }} REACT_APP_GOOGLE_SPREADSHEET_ID=${{ secrets.GOOGLE_SPREADSHEET_ID }} npm run build
         # Deployment script here
         echo "Deployment completed successfully!"
