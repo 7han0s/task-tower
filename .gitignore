@@ -61,3 +61,5 @@ server/package-lock.json
 *.wim
 *.swm
 *.esd
+private/
+private/*
