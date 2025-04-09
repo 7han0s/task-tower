@@ -451,6 +451,31 @@ Task Tower is a productivity gamification platform that combines task management
     - Conflict resolution
     - Recovery points
 
+- **Scoring System**
+  - Implemented comprehensive scoring rules
+    - Category-based points
+    - Complexity multipliers
+    - Big task multipliers
+    - Point caps
+
+  - Added bonus system
+    - Completion bonus
+    - Consecutive task bonus
+    - Big task bonus
+    - Early completion bonus
+    - Perfect round bonus
+    - Teamwork bonus
+    - Streak bonus
+
+  - Added statistics tracking
+    - Total tasks
+    - Completed tasks
+    - Big tasks
+    - Category breakdown
+    - Complexity levels
+    - Streaks
+    - Perfect rounds
+
 ### Current Focus
 - Core Game Logic
   - Scoring system implementation
@@ -460,7 +485,6 @@ Task Tower is a productivity gamification platform that combines task management
 
 ### Next Steps
 1. **Immediate Tasks**
-   - Complete scoring system
    - Fix multiplayer sync
    - Implement task complexity UI
    - Add optimizations
