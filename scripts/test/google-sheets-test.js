@@ -67,7 +67,7 @@ async function saveGameState(spreadsheetId, gameState, auth) {
         // Save game state
         await sheets.spreadsheets.values.update({
             spreadsheetId,
-            range: 'Game State!A1:E1',
+            range: 'A1:E1',
             valueInputOption: 'RAW',
             resource: {
                 values: [
@@ -91,7 +91,7 @@ async function saveGameState(spreadsheetId, gameState, auth) {
 
         await sheets.spreadsheets.values.update({
             spreadsheetId,
-            range: 'Player Data!A2:D',
+            range: 'A2:D',
             valueInputOption: 'RAW',
             resource: {
                 values: playerData
@@ -115,13 +115,13 @@ async function loadGameState(spreadsheetId, auth) {
         // Load game state
         const gameStateResponse = await sheets.spreadsheets.values.get({
             spreadsheetId,
-            range: 'Game State!A1:E1'
+            range: 'A1:E1'
         });
 
         // Load player data
         const playerDataResponse = await sheets.spreadsheets.values.get({
             spreadsheetId,
-            range: 'Player Data!A2:D'
+            range: 'A2:D'
         });
 
         const gameState = {
