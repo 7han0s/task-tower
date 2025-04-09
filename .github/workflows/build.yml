@@ -1,4 +1,4 @@
-name: Build and Deploy
+name: Build and Test
 
 on:
   push:
@@ -81,21 +81,5 @@ jobs:
         cd client
         npm test
       env:
-        REACT_APP_API_URL: ${{ secrets.API_URL }}
-        REACT_APP_GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
-
-    # Deploy
-    - name: Deploy
-      if: github.ref == 'refs/heads/dev-testing'
-      run: |
-        cd server
-        npm run build
-        cd ../client
-        npm run build
-        # Deployment script here
-        echo "Deployment completed successfully!"
-      env:
-        GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-        GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
         REACT_APP_API_URL: ${{ secrets.API_URL }}
         REACT_APP_GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
