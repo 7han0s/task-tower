@@ -1,0 +1,26 @@
+{
+  "spreadsheetId": "1g8DNrAhSnolYb57vlvtEad6BvozU3HZRKhYdM-kX1xE",
+  "userEmail": "sheetdb-service@task-tower-456102.iam.gserviceaccount.com",
+  "sheets": {
+    "gameState": {
+      "name": "Game State",
+      "range": "A1:E1",
+      "headers": [
+        "Round",
+        "Phase",
+        "Time Remaining",
+        "Player Count"
+      ]
+    },
+    "playerData": {
+      "name": "Player Data",
+      "range": "A2:D",
+      "headers": [
+        "ID",
+        "Name",
+        "Score",
+        "Tasks"
+      ]
+    }
+  }
+}
