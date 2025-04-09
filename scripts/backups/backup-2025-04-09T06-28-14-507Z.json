@@ -1,0 +1,42 @@
+{
+  "Game State": [
+    [
+      "Round",
+      "Phase",
+      "Time Remaining",
+      "Player Count"
+    ],
+    [
+      "3",
+      "work",
+      "1500",
+      "3"
+    ]
+  ],
+  "Player Data": [
+    [
+      "ID",
+      "Name",
+      "Score",
+      "Tasks"
+    ],
+    [
+      "1",
+      "Test Player 1",
+      "155",
+      "[{\"id\":1,\"title\":\"Test Task 1\",\"description\":\"This is a test task\",\"category\":\"work\",\"complexity\":\"MODERATE\",\"points\":3,\"status\":\"completed\"},{\"id\":2,\"title\":\"Test Task 2\",\"description\":\"Another test task\",\"category\":\"personal\",\"complexity\":\"EASY\",\"points\":2,\"status\":\"completed\"}]"
+    ],
+    [
+      "2",
+      "Test Player 2",
+      "77",
+      "[{\"id\":3,\"title\":\"Test Task 3\",\"description\":\"Player 2 task\",\"category\":\"chores\",\"complexity\":\"EASY\",\"points\":2,\"status\":\"completed\"}]"
+    ],
+    [
+      "3",
+      "New Player",
+      "0",
+      "[]"
+    ]
+  ]
+}
