@@ -570,6 +570,41 @@ Task Tower is a productivity gamification platform that combines task management
 - Implement error recovery
 - Add monitoring for suspicious activity
 
+### Google Sheets Authentication Setup
+- Required Environment Variables:
+  - GOOGLE_CLIENT_ID
+  - GOOGLE_CLIENT_SECRET
+  - GOOGLE_PROJECT_ID
+  - GOOGLE_SPREADSHEET_ID
+  - GOOGLE_AUTH_URI
+  - GOOGLE_TOKEN_URI
+  - GOOGLE_CERT_URL
+  - GOOGLE_TOKEN_PATH
+  - GOOGLE_REDIRECT_URI
+
+- Setup Steps:
+  1. Create Google Cloud Project
+  2. Enable Google Sheets API
+  3. Create OAuth 2.0 Client ID
+  4. Download client_secret.json
+  5. Share Google Sheet with service account
+  6. Update .env with credentials
+  7. Run authentication flow
+
+- Authentication Flow:
+  - Initialize OAuth2 client
+  - Generate auth URL
+  - Handle callback with token
+  - Store token in token.json
+  - Use token for API calls
+
+- Error Handling:
+  - Token expiration
+  - Invalid credentials
+  - Network errors
+  - Data errors
+  - Authentication failures
+
 ### Testing Results
 - Failed Tests:
   - Game Sheets Integration
