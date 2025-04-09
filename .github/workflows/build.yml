@@ -78,6 +78,11 @@ jobs:
     # Deploy
     - name: Deploy
       if: github.ref == 'refs/heads/dev-testing'
+      env:
+        GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+        REACT_APP_API_URL: ${{ secrets.API_URL }}
+        REACT_APP_GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
       uses: actions/github-script@v6
       with:
         script: |
