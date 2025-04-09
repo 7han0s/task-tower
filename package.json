@@ -1,0 +1,12 @@
+{
+  "name": "task_tower",
+  "version": "0.0.9",
+  "description": "Task Tower Application",
+  "private": true,
+  "scripts": {
+    "start": "echo \"Run \"npm run dev\" in server directory and \"npm run start\" in client directory\"",
+    "dev": "echo \"Run \"npm run dev\" in server directory and \"npm run start\" in client directory\""
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
