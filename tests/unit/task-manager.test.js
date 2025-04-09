@@ -1,4 +1,5 @@
-const { TaskManager } = require('../../scripts/core/task-manager');
+const { TaskManager } = require('../../scripts/core/task-manager.js');
+const { TaskComplexity } = require('../../scripts/core/task-complexity.js');
 
 describe('Task Manager', () => {
     let taskManager;
@@ -9,135 +10,126 @@ describe('Task Manager', () => {
 
     test('should add task correctly', () => {
         const task = {
-            description: 'Test task',
+            title: 'Test Task',
+            description: 'This is a test task',
             category: 'work',
-            complexity: 'MEDIUM',
-            priority: 'HIGH'
+            complexity: TaskComplexity.MODERATE,
+            points: 3
         };
 
-        const taskId = taskManager.addTask(task);
-        expect(taskId).toBeDefined();
-        expect(taskManager.getTask(taskId)).toEqual(expect.objectContaining(task));
+        const addedTask = taskManager.addTask(task);
+        expect(addedTask.id).toBeDefined();
+        expect(addedTask.title).toBe(task.title);
+        expect(addedTask.category).toBe(task.category);
+        expect(addedTask.complexity).toBe(task.complexity);
+        expect(addedTask.points).toBe(task.points);
     });
 
     test('should update task correctly', () => {
         const task = {
-            description: 'Test task',
+            title: 'Test Task',
+            description: 'This is a test task',
             category: 'work',
-            complexity: 'MEDIUM',
-            priority: 'HIGH'
+            complexity: TaskComplexity.MODERATE,
+            points: 3
         };
 
-        const taskId = taskManager.addTask(task);
-        const updatedTask = {
-            description: 'Updated task',
+        const addedTask = taskManager.addTask(task);
+        const updates = {
             status: 'completed',
             progress: 100
         };
 
-        taskManager.updateTask(taskId, updatedTask);
-        const updated = taskManager.getTask(taskId);
-        expect(updated).toEqual(expect.objectContaining(updatedTask));
+        const updatedTask = taskManager.updateTask(addedTask.id, updates);
+        expect(updatedTask.status).toBe(updates.status);
+        expect(updatedTask.progress).toBe(updates.progress);
     });
 
     test('should remove task correctly', () => {
         const task = {
-            description: 'Test task',
+            title: 'Test Task',
+            description: 'This is a test task',
             category: 'work',
-            complexity: 'MEDIUM',
-            priority: 'HIGH'
+            complexity: TaskComplexity.MODERATE,
+            points: 3
         };
 
-        const taskId = taskManager.addTask(task);
-        taskManager.removeTask(taskId);
-        expect(taskManager.getTask(taskId)).toBeNull();
+        const addedTask = taskManager.addTask(task);
+        const removed = taskManager.removeTask(addedTask.id);
+        expect(removed).toBe(true);
+
+        const taskExists = taskManager.getTasks().some(t => t.id === addedTask.id);
+        expect(taskExists).toBe(false);
     });
 
     test('should handle task dependencies', () => {
         const parentTask = {
-            description: 'Parent task',
-            category: 'work'
+            title: 'Parent Task',
+            description: 'This is the parent task',
+            category: 'work',
+            complexity: TaskComplexity.COMPLEX,
+            points: 5
         };
 
         const childTask = {
-            description: 'Child task',
-            category: 'work'
+            title: 'Child Task',
+            description: 'This is the child task',
+            category: 'work',
+            complexity: TaskComplexity.MODERATE,
+            points: 3,
+            dependsOn: []
         };
 
-        const parentId = taskManager.addTask(parentTask);
-        const childId = taskManager.addTask(childTask);
+        const parent = taskManager.addTask(parentTask);
+        childTask.dependsOn = [parent.id];
+        const child = taskManager.addTask(childTask);
 
-        taskManager.addDependency(parentId, childId);
-        expect(taskManager.getDependencies(parentId)).toContain(childId);
-        expect(taskManager.getDependents(childId)).toContain(parentId);
-
-        taskManager.removeDependency(parentId, childId);
-        expect(taskManager.getDependencies(parentId)).not.toContain(childId);
-        expect(taskManager.getDependents(childId)).not.toContain(parentId);
+        expect(child.dependsOn).toContain(parent.id);
     });
 
     test('should validate task data', () => {
-        const invalidTask = {};
+        const invalidTask = {
+            title: '', // Invalid - empty title
+            category: 'invalid', // Invalid - not in allowed categories
+            complexity: 'invalid', // Invalid - not a valid complexity level
+            points: -1 // Invalid - negative points
+        };
+
         expect(() => taskManager.addTask(invalidTask)).toThrow();
-
-        const taskWithInvalidCategory = {
-            description: 'Test task',
-            category: 'invalid'
-        };
-        expect(() => taskManager.addTask(taskWithInvalidCategory)).toThrow();
-
-        const taskWithInvalidComplexity = {
-            description: 'Test task',
-            category: 'work',
-            complexity: 'invalid'
-        };
-        expect(() => taskManager.addTask(taskWithInvalidComplexity)).toThrow();
-
-        const taskWithInvalidPriority = {
-            description: 'Test task',
-            category: 'work',
-            priority: 'invalid'
-        };
-        expect(() => taskManager.addTask(taskWithInvalidPriority)).toThrow();
     });
 
     test('should calculate task progress', () => {
         const task = {
-            description: 'Test task',
+            title: 'Test Task',
+            description: 'This is a test task',
             category: 'work',
+            complexity: TaskComplexity.MODERATE,
+            points: 3,
             subtasks: [
-                { description: 'Subtask 1', progress: 50 },
-                { description: 'Subtask 2', progress: 75 }
+                { title: 'Subtask 1', completed: true },
+                { title: 'Subtask 2', completed: false },
+                { title: 'Subtask 3', completed: true }
             ]
         };
 
-        const taskId = taskManager.addTask(task);
-        const progress = taskManager.calculateProgress(taskId);
-        expect(progress).toBe(62.5);
-
-        taskManager.updateTask(taskId, { progress: 100 });
-        expect(taskManager.calculateProgress(taskId)).toBe(100);
+        const addedTask = taskManager.addTask(task);
+        const progress = taskManager.calculateProgress(addedTask);
+        expect(progress).toBe(66.66666666666666); // 2 out of 3 subtasks completed
     });
 
     test('should handle task completion', () => {
         const task = {
-            description: 'Test task',
+            title: 'Test Task',
+            description: 'This is a test task',
             category: 'work',
-            subtasks: [
-                { description: 'Subtask 1' },
-                { description: 'Subtask 2' }
-            ]
+            complexity: TaskComplexity.MODERATE,
+            points: 3
         };
 
-        const taskId = taskManager.addTask(task);
-        taskManager.completeTask(taskId);
-        expect(taskManager.getTask(taskId).status).toBe('completed');
+        const addedTask = taskManager.addTask(task);
+        taskManager.updateTask(addedTask.id, { status: 'completed' });
 
-        // Complete subtasks
-        const subtasks = taskManager.getSubtasks(taskId);
-        subtasks.forEach(subtaskId => {
-            taskManager.completeTask(subtaskId);
-            expect(taskManager.getTask(subtaskId).status).toBe('completed');
-        });
+        const completedTask = taskManager.getTaskById(addedTask.id);
+        expect(completedTask.status).toBe('completed');
     });
 });

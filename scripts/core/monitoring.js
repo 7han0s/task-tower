@@ -1,290 +1,151 @@
 /**
  * monitoring.js
- * Handles monitoring and alerting for game state and system health
+ * Performance monitoring and error tracking system
  */
 
+import { googleService } from './google-service.js';
 import { gameCore } from './game-core.js';
-import { gameSheets } from './game-sheets.js';
-import { dataSync } from './data-sync.js';
-import { backupSystem } from './backup-system.js';
-import { realTime } from './real-time.js';
 
 export class Monitoring {
     constructor() {
-        this.monitorInterval = null;
-        this.lastCheck = null;
-        this.alerts = [];
-        this.healthMetrics = {
-            game: {
-                lastUpdate: null,
-                phaseChanges: 0,
-                roundChanges: 0
-            },
-            sheets: {
-                lastSync: null,
-                syncErrors: 0,
-                backupErrors: 0
-            },
-            network: {
-                latency: null,
-                connectionErrors: 0,
-                lastHeartbeat: null
-            }
+        this.performanceMetrics = {
+            initializationTime: null,
+            sheetOperations: [],
+            errors: [],
+            networkRequests: 0,
+            successfulRequests: 0,
+            failedRequests: 0
         };
-        this.checkFrequency = 10000; // 10 seconds
-        this.lastPhase = null;
-        this.lastRound = null;
+
+        this.setupEventListeners();
+    }
+
+    setupEventListeners() {
+        // Listen for sheet operations
+        if (gameCore && gameCore.addGameStateListener) {
+            gameCore.addGameStateListener((event) => {
+                if (event.type === 'sheet_operation') {
+                    this.trackSheetOperation(event);
+                }
+            });
+        }
+
+        // Listen for errors
+        if (window) {
+            window.addEventListener('error', (event) => {
+                this.trackError(event);
+            });
+
+            // Listen for unhandled promise rejections
+            window.addEventListener('unhandledrejection', (event) => {
+                this.trackError(event.reason);
+            });
+        }
+    }
+
+    trackSheetOperation(event) {
+        const operation = {
+            type: event.operation,
+            timestamp: new Date().toISOString(),
+            duration: event.duration,
+            success: event.success
+        };
+
+        this.performanceMetrics.sheetOperations.push(operation);
+
+        if (event.success) {
+            this.performanceMetrics.successfulRequests++;
+        } else {
+            this.performanceMetrics.failedRequests++;
+        }
+
+        this.performanceMetrics.networkRequests++;
+    }
+
+    trackError(error) {
+        const errorInfo = {
+            message: error.message,
+            type: error.type || 'Unknown',
+            timestamp: new Date().toISOString(),
+            context: error.context || {},
+            stack: error.stack
+        };
+
+        this.performanceMetrics.errors.push(errorInfo);
+
+        // Log critical errors
+        if (error.type === 'AuthError' || error.type === 'NetworkError') {
+            console.error('Critical error:', errorInfo);
+        }
+    }
+
+    getPerformanceMetrics() {
+        return {
+            ...this.performanceMetrics,
+            successRate: this.performanceMetrics.networkRequests > 0 
+                ? (this.performanceMetrics.successfulRequests / this.performanceMetrics.networkRequests) * 100
+                : 0,
+            errorCount: this.performanceMetrics.errors.length,
+            lastError: this.performanceMetrics.errors.length > 0 
+                ? this.performanceMetrics.errors[this.performanceMetrics.errors.length - 1]
+                : null
+        };
     }
 
     async initialize() {
         try {
-            // Start monitoring loop
-            this.startMonitoring();
+            const startTime = performance.now();
             
-            // Initial health check
-            await this.checkHealth();
+            // Initialize performance tracking
+            this.performanceMetrics.initializationTime = performance.now() - startTime;
 
-            console.log('Monitoring system initialized');
+            // Set up periodic monitoring
+            setInterval(() => {
+                this.logPerformanceMetrics();
+            }, 60000); // Log every minute
+
+            console.log('Monitoring system initialized successfully');
         } catch (error) {
-            console.error('Error initializing monitoring system:', error);
+            this.trackError(error);
             throw error;
         }
     }
 
-    startMonitoring() {
-        this.monitorInterval = setInterval(async () => {
+    logPerformanceMetrics() {
+        const metrics = this.getPerformanceMetrics();
+        console.log('Performance Metrics:', metrics);
+
+        // If we have Google Sheets integration, save metrics
+        if (googleService && googleService.sheets) {
             try {
-                await this.checkHealth();
+                const metricsData = [
+                    metrics.successRate,
+                    metrics.errorCount,
+                    metrics.initializationTime,
+                    metrics.networkRequests
+                ];
+
+                googleService.updateSheetData('Monitoring!A2:E2', [metricsData]);
             } catch (error) {
-                console.error('Error in monitoring loop:', error);
+                this.trackError(error);
             }
-        }, this.checkFrequency);
-
-        // Initial check
-        this.checkHealth();
-    }
-
-    async checkHealth() {
-        try {
-            // Update last check time
-            this.lastCheck = new Date();
-
-            // Check game state
-            await this.checkGameState();
-
-            // Check sheets integration
-            await this.checkSheetsHealth();
-
-            // Check network
-            await this.checkNetworkHealth();
-
-            // Generate alerts if needed
-            this.generateAlerts();
-
-            // Log metrics
-            this.logMetrics();
-        } catch (error) {
-            console.error('Error checking health:', error);
-            throw error;
         }
     }
 
-    async checkGameState() {
+    async backupMetrics() {
         try {
-            // Get current game state
-            const gameState = {
-                currentPhase: gameCore.currentPhase,
-                currentRound: gameCore.currentRound,
-                playerCount: gameCore.currentPlayerCount
-            };
-
-            // Update metrics
-            this.healthMetrics.game.lastUpdate = new Date();
-            if (gameState.currentPhase !== this.lastPhase) {
-                this.healthMetrics.game.phaseChanges++;
-                this.lastPhase = gameState.currentPhase;
-            }
-            if (gameState.currentRound !== this.lastRound) {
-                this.healthMetrics.game.roundChanges++;
-                this.lastRound = gameState.currentRound;
-            }
-        } catch (error) {
-            console.error('Error checking game state:', error);
-            throw error;
-        }
-    }
-
-    async checkSheetsHealth() {
-        try {
-            // Check last sync time
-            const lastSync = await gameSheets.getLastSyncTime();
-            this.healthMetrics.sheets.lastSync = lastSync;
-
-            // Check backup status
-            const backupStats = await backupSystem.getBackupStats();
-            if (backupStats.totalBackups === 0) {
-                this.healthMetrics.sheets.backupErrors++;
-            }
-        } catch (error) {
-            console.error('Error checking sheets health:', error);
-            this.healthMetrics.sheets.syncErrors++;
-            throw error;
-        }
-    }
-
-    async checkNetworkHealth() {
-        try {
-            // Check WebSocket connection
-            if (realTime.socket && realTime.socket.readyState === WebSocket.OPEN) {
-                this.healthMetrics.network.latency = this.calculateLatency();
-                this.healthMetrics.network.lastHeartbeat = realTime.lastHeartbeat;
-            } else {
-                this.healthMetrics.network.connectionErrors++;
-            }
-        } catch (error) {
-            console.error('Error checking network health:', error);
-            throw error;
-        }
-    }
-
-    calculateLatency() {
-        const now = new Date();
-        return now - realTime.lastHeartbeat;
-    }
-
-    async generateAlerts() {
-        try {
-            // Game alerts
-            if (this.healthMetrics.game.phaseChanges > 10) {
-                this.addAlert('Frequent phase changes detected');
-            }
-
-            // Sheets alerts
-            if (this.healthMetrics.sheets.syncErrors > 0) {
-                this.addAlert('Google Sheets sync errors detected');
-            }
-            if (this.healthMetrics.sheets.backupErrors > 0) {
-                this.addAlert('Backup system errors detected');
-            }
-
-            // Network alerts
-            if (this.healthMetrics.network.connectionErrors > 0) {
-                this.addAlert('Network connection issues detected');
-            }
-            if (this.healthMetrics.network.latency > 1000) {
-                this.addAlert('High network latency detected');
-            }
-        } catch (error) {
-            console.error('Error generating alerts:', error);
-            throw error;
-        }
-    }
-
-    addAlert(message) {
-        this.alerts.push({
-            timestamp: new Date().toISOString(),
-            message: message,
-            type: 'warning'
-        });
-    }
-
-    async logMetrics() {
-        try {
-            // Log metrics to console
-            console.log('Health Metrics:', this.healthMetrics);
-
-            // Save to Google Sheets
-            const metrics = [
-                this.lastCheck.getTime(),
-                this.healthMetrics.game.phaseChanges,
-                this.healthMetrics.game.roundChanges,
-                this.healthMetrics.sheets.syncErrors,
-                this.healthMetrics.sheets.backupErrors,
-                this.healthMetrics.network.latency,
-                this.healthMetrics.network.connectionErrors
+            const metrics = this.getPerformanceMetrics();
+            const backupData = [
+                metrics.timestamp,
+                metrics.successRate,
+                metrics.errorCount,
+                metrics.initializationTime,
+                metrics.networkRequests
             ];
 
-            await gameSheets.updateSheetData('Health Metrics!A2:H', [metrics]);
+            await googleService.updateSheetData('Monitoring Backup!A2:F', [backupData]);
         } catch (error) {
-            console.error('Error logging metrics:', error);
-            throw error;
-        }
-    }
-
-    async getAlerts() {
-        try {
-            return this.alerts;
-        } catch (error) {
-            console.error('Error getting alerts:', error);
-            throw error;
-        }
-    }
-
-    async clearAlerts() {
-        try {
-            this.alerts = [];
-            console.log('Alerts cleared successfully');
-        } catch (error) {
-            console.error('Error clearing alerts:', error);
-            throw error;
-        }
-    }
-
-    async getHealthReport() {
-        try {
-            return {
-                timestamp: new Date().toISOString(),
-                game: this.healthMetrics.game,
-                sheets: this.healthMetrics.sheets,
-                network: this.healthMetrics.network,
-                alerts: this.alerts
-            };
-        } catch (error) {
-            console.error('Error getting health report:', error);
-            throw error;
-        }
-    }
-
-    async monitorPerformance() {
-        try {
-            // Check memory usage
-            const memoryUsage = process.memoryUsage();
-            
-            // Check CPU usage
-            const cpuUsage = process.cpuUsage();
-
-            // Log performance metrics
-            const metrics = [
-                this.lastCheck.getTime(),
-                memoryUsage.heapUsed,
-                memoryUsage.heapTotal,
-                cpuUsage,
-                process.uptime()
-            ];
-
-            await gameSheets.updateSheetData('Performance Metrics!A2:E', [metrics]);
-        } catch (error) {
-            console.error('Error monitoring performance:', error);
-            throw error;
-        }
-    }
-
-    async monitorSecurity() {
-        try {
-            // Check for suspicious API calls
-            const recentCalls = await gameSheets.getRecentApiCalls();
-            if (recentCalls.length > 100) {
-                this.addAlert('High API call frequency detected');
-            }
-
-            // Check for unauthorized access attempts
-            const accessLogs = await gameSheets.getAccessLogs();
-            if (accessLogs.filter(log => log.type === 'failed').length > 5) {
-                this.addAlert('Multiple failed access attempts detected');
-            }
-        } catch (error) {
-            console.error('Error monitoring security:', error);
-            throw error;
+            this.trackError(error);
         }
     }
 }

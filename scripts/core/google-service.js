@@ -6,6 +6,35 @@
 import { google } from 'googleapis';
 import config from './google-config.js';
 
+// Custom error types
+export class GoogleServiceError extends Error {
+    constructor(message, type, context = {}) {
+        super(message);
+        this.name = 'GoogleServiceError';
+        this.type = type;
+        this.context = context;
+        this.timestamp = new Date().toISOString();
+    }
+}
+
+export class AuthError extends GoogleServiceError {
+    constructor(message, context = {}) {
+        super(message, 'AuthError', context);
+    }
+}
+
+export class NetworkError extends GoogleServiceError {
+    constructor(message, context = {}) {
+        super(message, 'NetworkError', context);
+    }
+}
+
+export class DataError extends GoogleServiceError {
+    constructor(message, context = {}) {
+        super(message, 'DataError', context);
+    }
+}
+
 export class GoogleService {
     constructor() {
         this.auth = null;
@@ -15,47 +44,67 @@ export class GoogleService {
     async initialize() {
         try {
             this.auth = await this.getAuth();
+            if (!this.auth) {
+                throw new AuthError('Authentication failed', { authUrl: this.authUrl });
+            }
             this.sheets = google.sheets({ version: 'v4', auth: this.auth });
             console.log('Google API initialized successfully');
         } catch (error) {
-            console.error('Error initializing Google API:', error);
+            console.error('Error initializing Google API:', {
+                error: error.message,
+                type: error.type,
+                context: error.context
+            });
             throw error;
         }
     }
 
     async getAuth() {
-        const oAuth2Client = new google.auth.OAuth2(
-            config.google.clientId,
-            config.google.clientSecret,
-            config.google.redirectUri
-        );
+        try {
+            const oAuth2Client = new google.auth.OAuth2(
+                config.google.clientId,
+                config.google.clientSecret,
+                config.google.redirectUri
+            );
 
-        // Check if we have a valid token
-        const token = localStorage.getItem('google-token');
-        if (token) {
-            try {
-                oAuth2Client.setCredentials(JSON.parse(token));
-                const expiryDate = new Date(JSON.parse(token).expiry_date);
-                if (expiryDate > new Date()) {
-                    return oAuth2Client;
+            // Check if we have a valid token
+            const token = localStorage.getItem('google-token');
+            if (token) {
+                try {
+                    oAuth2Client.setCredentials(JSON.parse(token));
+                    const expiryDate = new Date(JSON.parse(token).expiry_date);
+                    if (expiryDate > new Date()) {
+                        return oAuth2Client;
+                    }
+                } catch (error) {
+                    console.log('Invalid token, will request new one');
                 }
-            } catch (error) {
-                console.log('Invalid token, will request new one');
             }
+
+            // If no valid token, redirect to auth URL
+            const authUrl = oAuth2Client.generateAuthUrl({
+                access_type: 'offline',
+                scope: config.google.scopes
+            });
+
+            throw new AuthError('No valid authentication token found', { authUrl });
+
+        } catch (error) {
+            console.error('Error getting authentication:', {
+                error: error.message,
+                type: error.type,
+                context: error.context
+            });
+            throw error;
         }
-
-        // If no valid token, redirect to auth URL
-        const authUrl = oAuth2Client.generateAuthUrl({
-            access_type: 'offline',
-            scope: config.google.scopes
-        });
-
-        window.location.href = authUrl;
-        return null; // Will be handled by callback
     }
 
     async handleCallback(code) {
         try {
+            if (!code) {
+                throw new AuthError('No authorization code provided');
+            }
+
             const oAuth2Client = new google.auth.OAuth2(
                 config.google.clientId,
                 config.google.clientSecret,
@@ -70,26 +119,47 @@ export class GoogleService {
             this.sheets = google.sheets({ version: 'v4', auth: oAuth2Client });
             return true;
         } catch (error) {
-            console.error('Error handling Google callback:', error);
-            return false;
+            console.error('Error handling Google callback:', {
+                error: error.message,
+                type: error.type,
+                context: error.context
+            });
+            throw new AuthError('Failed to handle callback', { code });
         }
     }
 
     async getSheetData(range) {
         try {
+            if (!this.sheets) {
+                throw new DataError('Sheets API not initialized');
+            }
+
             const response = await this.sheets.spreadsheets.values.get({
                 spreadsheetId: config.google.spreadsheetId,
                 range: range
             });
+
+            if (!response.data.values) {
+                throw new DataError('No data found in range', { range });
+            }
+
             return response.data.values;
         } catch (error) {
-            console.error('Error getting sheet data:', error);
-            throw error;
+            console.error('Error getting sheet data:', {
+                error: error.message,
+                type: error.type,
+                context: error.context
+            });
+            throw new NetworkError('Failed to get sheet data', { range });
         }
     }
 
     async updateSheetData(range, values) {
         try {
+            if (!this.sheets) {
+                throw new DataError('Sheets API not initialized');
+            }
+
             await this.sheets.spreadsheets.values.update({
                 spreadsheetId: config.google.spreadsheetId,
                 range: range,
@@ -97,8 +167,12 @@ export class GoogleService {
                 resource: { values: values }
             });
         } catch (error) {
-            console.error('Error updating sheet data:', error);
-            throw error;
+            console.error('Error updating sheet data:', {
+                error: error.message,
+                type: error.type,
+                context: error.context
+            });
+            throw new NetworkError('Failed to update sheet data', { range });
         }
     }
 }

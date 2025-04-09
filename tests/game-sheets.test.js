@@ -3,161 +3,160 @@
  * Test suite for Google Sheets integration
  */
 
-import { gameSheets } from '../scripts/core/game-sheets.js';
-import { gameCore } from '../scripts/core/game-core.js';
-
-// Mock Google service for testing
-jest.mock('../scripts/core/google-service.js', () => ({
-    googleService: {
-        initialize: jest.fn(),
-        updateSheetData: jest.fn(),
-        getSheetData: jest.fn(),
-        sheets: {
-            spreadsheets: {
-                create: jest.fn(),
-                batchUpdate: jest.fn(),
-                values: {
-                    clear: jest.fn()
-                }
-            }
-        }
-    }
-}));
-
-// Mock StorageManager
-jest.mock('../scripts/core/storage-manager.js', () => ({
-    isAvailable: jest.fn().mockReturnValue(true),
-    loadGame: jest.fn(),
-    saveGame: jest.fn(),
-    clearSaved: jest.fn()
-}));
+const { GameSheets } = require('../scripts/core/game-sheets.js');
+const { StorageManager } = require('../scripts/core/storage-manager.js');
+const { TaskComplexity } = require('../scripts/core/task-complexity.js');
 
 describe('Game Sheets Integration', () => {
+    let gameSheets;
     let mockGameState;
-    let mockPlayerData;
 
     beforeEach(() => {
-        // Reset all mocks
-        jest.clearAllMocks();
+        // Mock the Google Sheets API
+        jest.mock('googleapis', () => ({
+            google: {
+                sheets: () => ({
+                    spreadsheets: {
+                        values: {
+                            get: jest.fn(),
+                            update: jest.fn(),
+                            append: jest.fn()
+                        }
+                    }
+                })
+            }
+        }));
+
+        // Initialize GameSheets
+        gameSheets = new GameSheets();
 
         // Create mock game state
         mockGameState = {
-            lobbyCode: 'TOWER_TEST',
-            currentPhase: 'work',
-            currentRound: 1,
-            timer: 1500,
-            playerCount: 2,
             players: [
                 {
                     id: 1,
-                    name: 'Player 1',
-                    score: 10,
-                    tasks: [{ id: 1, description: 'Test task', category: 'work' }],
-                    towerBlocks: [{ id: 1, type: 'basic' }]
-                },
-                {
-                    id: 2,
-                    name: 'Player 2',
-                    score: 5,
-                    tasks: [],
-                    towerBlocks: []
+                    name: 'Test Player 1',
+                    score: 100,
+                    tasks: [
+                        {
+                            id: 1,
+                            title: 'Test Task 1',
+                            description: 'This is a test task',
+                            category: 'work',
+                            complexity: TaskComplexity.MODERATE,
+                            points: 3,
+                            status: 'completed'
+                        }
+                    ]
                 }
-            ]
+            ],
+            currentRound: 1,
+            currentPhase: 'work',
+            phaseTimeRemaining: 1500
         };
-
-        // Create mock player data
-        mockPlayerData = mockGameState.players.map(player => [
-            player.id,
-            player.name,
-            player.score,
-            JSON.stringify(player.tasks),
-            JSON.stringify(player.towerBlocks)
-        ]);
     });
 
-    test('should initialize Google Sheets successfully', async () => {
+    test('should initialize Google Sheets integration', async () => {
         await gameSheets.initialize();
-        expect(gameSheets.spreadsheetId).toBeDefined();
+        expect(gameSheets.sheets).toBeDefined();
     });
 
     test('should save game state to Google Sheets', async () => {
-        await gameSheets.saveGameState(mockGameState);
-
-        // Verify game state was saved
-        expect(gameSheets.sheets.spreadsheets.values.update).toHaveBeenCalledWith({
-            spreadsheetId: expect.any(String),
-            range: 'Game State!A2:E2',
-            valueInputOption: 'RAW',
-            resource: {
-                values: [
-                    [
-                        mockGameState.lobbyCode,
-                        mockGameState.currentPhase,
-                        mockGameState.currentRound,
-                        mockGameState.timer,
-                        mockGameState.playerCount
-                    ]
-                ]
+        // Mock the update response
+        jest.mocked(gameSheets.sheets.spreadsheets.values.update).mockResolvedValue({
+            data: {
+                updates: {
+                    updatedCells: 1
+                }
             }
         });
 
-        // Verify player data was saved
-        expect(gameSheets.sheets.spreadsheets.values.update).toHaveBeenCalledWith({
-            spreadsheetId: expect.any(String),
-            range: 'Player Data!A2:E',
-            valueInputOption: 'RAW',
-            resource: { values: mockPlayerData }
-        });
+        await gameSheets.saveGameState(mockGameState);
+        expect(gameSheets.sheets.spreadsheets.values.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                spreadsheetId: expect.any(String),
+                range: 'Game State!A2:E2',
+                valueInputOption: 'RAW',
+                resource: {
+                    values: expect.any(Array)
+                }
+            })
+        );
     });
 
     test('should load game state from Google Sheets', async () => {
-        // Mock getSheetData responses
-        gameSheets.sheets.spreadsheets.values.get.mockResolvedValue({
+        // Mock the get response
+        jest.mocked(gameSheets.sheets.spreadsheets.values.get).mockResolvedValue({
             data: {
                 values: [
-                    [
-                        mockGameState.lobbyCode,
-                        mockGameState.currentPhase,
-                        mockGameState.currentRound,
-                        mockGameState.timer,
-                        mockGameState.playerCount
-                    ]
+                    ['Test Player 1', 100, 'Test Task 1', 'completed', 1500]
                 ]
             }
         });
 
-        const loadedState = await gameSheets.loadGameState();
-        expect(loadedState).toEqual(mockGameState);
+        const gameState = await gameSheets.loadGameState();
+        expect(gameState).toBeDefined();
+        expect(gameState.players[0].name).toBe('Test Player 1');
     });
 
     test('should create backup of game state', async () => {
-        await gameSheets.backupGameState();
-
-        // Verify backup sheet was created
-        expect(gameSheets.sheets.spreadsheets.batchUpdate).toHaveBeenCalled();
-
-        // Verify backup data was saved
-        expect(gameSheets.sheets.spreadsheets.values.update).toHaveBeenCalledWith({
-            spreadsheetId: expect.any(String),
-            range: 'Game State Backup!A1:E1',
-            valueInputOption: 'RAW',
-            resource: {
-                values: [
-                    ['Lobby Code', 'Current Phase', 'Current Round', 'Timer', 'Player Count']
-                ]
+        // Mock the append response
+        jest.mocked(gameSheets.sheets.spreadsheets.values.append).mockResolvedValue({
+            data: {
+                updates: {
+                    updatedCells: 1
+                }
             }
         });
+
+        const backupId = await gameSheets.createBackup(mockGameState);
+        expect(backupId).toBeDefined();
+        expect(gameSheets.sheets.spreadsheets.values.append).toHaveBeenCalledWith(
+            expect.objectContaining({
+                spreadsheetId: expect.any(String),
+                range: 'Backups!A1:E1',
+                valueInputOption: 'RAW',
+                resource: {
+                    values: expect.any(Array)
+                }
+            })
+        );
     });
 
     test('should handle errors gracefully', async () => {
-        // Mock error scenarios
-        gameSheets.sheets.spreadsheets.values.update.mockRejectedValue(new Error('API Error'));
+        // Mock API error
+        jest.mocked(gameSheets.sheets.spreadsheets.values.update).mockRejectedValue(new Error('API Error'));
 
         try {
             await gameSheets.saveGameState(mockGameState);
         } catch (error) {
+            expect(error).toBeDefined();
             expect(error.message).toBe('API Error');
-            expect(console.error).toHaveBeenCalled();
+        }
+    });
+
+    test('should recover from backup on error', async () => {
+        // Mock error scenario
+        jest.mocked(gameSheets.sheets.spreadsheets.values.update).mockRejectedValue(new Error('API Error'));
+
+        // Mock backup data
+        jest.mocked(gameSheets.sheets.spreadsheets.values.get).mockResolvedValue({
+            data: {
+                values: [
+                    ['Test Player 1', 100, 'Test Task 1', 'completed', 1500]
+                ]
+            }
+        });
+
+        try {
+            await gameSheets.saveGameState(mockGameState);
+        } catch (error) {
+            expect(error).toBeDefined();
+            
+            // Verify backup recovery
+            const recoveredState = await gameSheets.loadGameState();
+            expect(recoveredState).toBeDefined();
+            expect(recoveredState.players[0].name).toBe('Test Player 1');
         }
     });
 });

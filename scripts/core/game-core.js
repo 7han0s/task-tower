@@ -116,11 +116,31 @@ export class GameCore {
 
     async initializeGame(options, checkSaved = true) {
         try {
-            // Reset game state
+            // Validate options
+            if (!this.validateConfig(options)) {
+                throw new Error('Invalid game configuration');
+            }
+
+            // Load saved game state if requested
+            if (checkSaved) {
+                try {
+                    const savedState = await this.loadGameState();
+                    if (savedState) {
+                        this.loadGameState(savedState);
+                        return;
+                    }
+                } catch (error) {
+                    console.log('No saved game state found, starting new game');
+                }
+            }
+
+            // Initialize game state
             players = [];
+            currentPlayerCount = 0;
             currentRound = 1;
-            totalRounds = options.rounds || defaultConfig.maxRounds;
+            totalRounds = options.totalRounds || totalRounds;
             currentPhase = 'setup';
+            phaseTimeRemaining = 0;
             nextPlayerId = 1;
             nextTaskId = 1;
             actionsTakenThisRound = {};
@@ -129,21 +149,6 @@ export class GameCore {
             // Update configuration if provided
             if (options.config) {
                 GameCore.updateConfig(options.config);
-            }
-
-            // Check for saved game if requested
-            if (checkSaved && StorageManager.isAvailable()) {
-                const savedGame = StorageManager.loadGame();
-                if (savedGame) {
-                    // Ask if the user wants to resume the saved game
-                    const resumeGame = confirm('A saved game was found. Would you like to resume it?');
-                    if (resumeGame) {
-                        await this.loadGameState(savedGame);
-                    } else {
-                        // Clear the saved game if not resuming
-                        StorageManager.clearSaved();
-                    }
-                }
             }
 
             // Validate player count
@@ -186,65 +191,71 @@ export class GameCore {
 
             return players;
         } catch (error) {
-            console.error('Error initializing game:', error);
+            monitoring.trackError(error);
             throw error;
         }
     }
 
     async saveGameState() {
         try {
-            const gameState = {
-                lobbyCode: 'TOWER_' + Math.random().toString(36).substring(7),
-                currentPhase: currentPhase,
+            const startTime = performance.now();
+            await gameSheets.saveGameState({
+                players: players,
+                currentPlayerCount: currentPlayerCount,
                 currentRound: currentRound,
-                timer: phaseTimeRemaining,
-                playerCount: players.length,
-                players: players
-            };
+                totalRounds: totalRounds,
+                currentPhase: currentPhase,
+                phaseTimeRemaining: phaseTimeRemaining,
+                nextPlayerId: nextPlayerId,
+                nextTaskId: nextTaskId,
+                actionsTakenThisRound: actionsTakenThisRound,
+                config: { ...defaultConfig }
+            });
 
-            await dataSync.addSyncEvent('game-state', gameState);
-            await realTime.broadcastEvent('game-state', gameState);
+            const duration = performance.now() - startTime;
+            monitoring.trackSheetOperation({
+                type: 'save_game_state',
+                duration,
+                success: true
+            });
 
-            // Create backup
-            await backupSystem.createBackup();
-
-            // Monitor state save
-            monitoring.checkHealth();
+            console.log('Game state saved successfully');
         } catch (error) {
-            console.error('Error saving game state:', error);
+            monitoring.trackError(error);
             throw error;
         }
     }
 
     async loadGameState(savedState) {
         try {
-            // Load from Google Sheets if no saved state provided
-            if (!savedState) {
-                savedState = await gameSheets.loadGameState();
+            const startTime = performance.now();
+            
+            // Validate saved state
+            if (!savedState || typeof savedState !== 'object') {
+                throw new Error('Invalid saved game state');
             }
 
-            // Update game state
-            currentRound = savedState.currentRound;
-            currentPhase = savedState.currentPhase;
-            phaseTimeRemaining = savedState.timer;
+            // Load game state
             players = savedState.players;
-            currentPlayerCount = players.length;
-            nextPlayerId = players.length + 1;
+            currentPlayerCount = savedState.currentPlayerCount;
+            currentRound = savedState.currentRound;
+            totalRounds = savedState.totalRounds;
+            currentPhase = savedState.currentPhase;
+            phaseTimeRemaining = savedState.phaseTimeRemaining;
+            nextPlayerId = savedState.nextPlayerId;
+            nextTaskId = savedState.nextTaskId;
+            actionsTakenThisRound = savedState.actionsTakenThisRound;
 
-            // Add to sync queue
-            await dataSync.addSyncEvent('game-state', savedState);
-            await realTime.broadcastEvent('game-state', savedState);
-
-            // Create backup
-            await backupSystem.createBackup();
-
-            // Monitor state load
-            monitoring.checkHealth();
+            const duration = performance.now() - startTime;
+            monitoring.trackSheetOperation({
+                type: 'load_game_state',
+                duration,
+                success: true
+            });
 
             console.log('Game state loaded successfully');
-            return players;
         } catch (error) {
-            console.error('Error loading game state:', error);
+            monitoring.trackError(error);
             throw error;
         }
     }
@@ -256,33 +267,21 @@ export class GameCore {
                 throw new Error(`Player ${playerId} not found`);
             }
 
-            // Apply updates
             Object.assign(player, updates);
-
-            // Add to sync queue
-            await dataSync.addSyncEvent('player-update', { ...player });
-            await realTime.broadcastEvent('player-update', { ...player });
-
-            // Create backup
-            await backupSystem.createBackup();
-
-            // Monitor player update
-            monitoring.checkHealth();
+            await this.saveGameState();
         } catch (error) {
-            console.error('Error updating player:', error);
+            monitoring.trackError(error);
             throw error;
         }
     }
 
     async handleTaskCompletion(playerId, taskId) {
         try {
-            // Update game state
             const player = players.find(p => p.id === playerId);
             if (!player) {
                 throw new Error(`Player ${playerId} not found`);
             }
 
-            // Find and complete task
             const taskIndex = player.pendingTasks.findIndex(t => t.id === taskId);
             if (taskIndex === -1) {
                 throw new Error(`Task ${taskId} not found for player ${playerId}`);
@@ -308,7 +307,7 @@ export class GameCore {
 
             return true;
         } catch (error) {
-            console.error('Error handling task completion:', error);
+            monitoring.trackError(error);
             throw error;
         }
     }
@@ -341,7 +340,7 @@ export class GameCore {
 
             return winners;
         } catch (error) {
-            console.error('Error ending game:', error);
+            monitoring.trackError(error);
             throw error;
         }
     }
