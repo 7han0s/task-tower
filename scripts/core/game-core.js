@@ -14,7 +14,25 @@ let phaseTimeRemaining = 0;
 let nextPlayerId = 1; // Keep track of the next ID to assign
 let nextTaskId = 1; // Keep track of task IDs within a round
 let actionsTakenThisRound = {}; // Track actions per player { playerId: boolean }
-const pointsPerCategory = { personal: 1, chores: 2, work: 3 };
+const pointsPerCategory = { 
+    personal: 1, 
+    chores: 2, 
+    work: 3, 
+    big: 1.5 // Multiplier for big tasks
+};
+const scoreBonuses = {
+    completion: 1.2, // Bonus for completing tasks
+    consecutive: 1.5, // Bonus for completing tasks in sequence
+    bigTask: 2.0, // Bonus for big tasks
+    roundCompletion: 1.1, // Bonus for completing all tasks in a round
+    earlyCompletion: 1.2, // Bonus for completing tasks early
+    perfectRound: 1.5, // Bonus for completing all tasks perfectly
+    teamwork: 1.3, // Bonus for helping other players
+    streak: {
+        length: 3, // Number of consecutive completions needed
+        multiplier: 1.5 // Multiplier for streak
+    }
+};
 let gamePaused = false;
 
 // Configuration options (now customizable)
@@ -28,7 +46,21 @@ const defaultConfig = {
     minRoundTime: 10, // Minimum round time
     maxRoundTime: 60, // Maximum round time
     minBreakTime: 5, // Minimum break time
-    maxBreakTime: 30 // Maximum break time
+    maxBreakTime: 30, // Maximum break time
+    taskCategories: ['personal', 'chores', 'work', 'big'],
+    taskComplexityLevels: [1, 2, 3], // Easy, Medium, Hard
+    basePoints: 100, // Base points for task completion
+    streakLength: 3, // Number of consecutive completions needed for streak
+    streakMultiplier: 1.5, // Multiplier for streak
+    perfectRoundMultiplier: 1.5, // Multiplier for perfect round
+    earlyCompletionThreshold: 0.75, // Percentage of time remaining for early completion bonus
+    teamworkBonus: 1.3, // Bonus for helping other players
+    maxTaskPoints: 500, // Maximum points per task
+    minTaskPoints: 50, // Minimum points per task
+    taskCompletionTime: 300, // Time in seconds to complete a task
+    taskCompletionBonus: 1.2, // Bonus for completing tasks
+    consecutiveTaskBonus: 1.5, // Bonus for completing tasks in sequence
+    bigTaskBonus: 2.0 // Bonus multiplier for big tasks
 };
 
 // Import Google Sheets integration and data sync
@@ -37,6 +69,124 @@ import { dataSync } from './data-sync.js';
 import { realTime } from './real-time.js';
 import { backupSystem } from './backup-system.js';
 import { monitoring } from './monitoring.js';
+
+// Scoring System
+const scoringSystem = {
+    calculateBasePoints: (task) => {
+        // Calculate base points based on category and complexity
+        let basePoints = pointsPerCategory[task.category] || 1;
+        
+        // Apply complexity multiplier
+        basePoints *= task.complexity || 1;
+        
+        // Apply big task multiplier
+        if (task.isBigTask) {
+            basePoints *= pointsPerCategory.big;
+        }
+        
+        // Cap points between min and max
+        basePoints = Math.max(
+            defaultConfig.minTaskPoints,
+            Math.min(defaultConfig.maxTaskPoints, basePoints)
+        );
+        
+        return basePoints;
+    },
+
+    calculateCompletionBonus: (task, player) => {
+        let bonus = 1;
+        
+        // Completion bonus
+        bonus *= scoreBonuses.completion;
+        
+        // Big task bonus
+        if (task.isBigTask) {
+            bonus *= scoreBonuses.bigTask;
+        }
+        
+        // Consecutive task bonus
+        if (player.lastTaskCompleted && 
+            player.lastTaskCompleted.category === task.category) {
+            bonus *= scoreBonuses.consecutive;
+        }
+        
+        // Early completion bonus
+        const timeRemaining = phaseTimeRemaining;
+        const phaseDuration = currentPhase === 'work' 
+            ? defaultConfig.roundTime * 60 
+            : defaultConfig.breakTime * 60;
+        
+        if (timeRemaining / phaseDuration > defaultConfig.earlyCompletionThreshold) {
+            bonus *= scoreBonuses.earlyCompletion;
+        }
+        
+        return bonus;
+    },
+
+    calculateStreakBonus: (player) => {
+        let bonus = 1;
+        
+        // Check for streak
+        if (player.consecutiveCompletions >= defaultConfig.streakLength) {
+            bonus *= defaultConfig.streakMultiplier;
+        }
+        
+        return bonus;
+    },
+
+    calculatePerfectRoundBonus: (player) => {
+        let bonus = 1;
+        
+        // Check if all tasks completed
+        const allTasksCompleted = player.tasks.every(task => 
+            !task.subtasks.some(subtask => !subtask.completed)
+        );
+        
+        if (allTasksCompleted) {
+            bonus *= defaultConfig.perfectRoundMultiplier;
+        }
+        
+        return bonus;
+    },
+
+    calculateTeamworkBonus: (player, helper) => {
+        let bonus = 1;
+        
+        // Check if helping another player
+        if (helper && helper.id !== player.id) {
+            bonus *= defaultConfig.teamworkBonus;
+        }
+        
+        return bonus;
+    },
+
+    calculateTotalPoints: (task, player, helper = null) => {
+        try {
+            // Calculate base points
+            let totalPoints = scoringSystem.calculateBasePoints(task);
+            
+            // Apply completion bonus
+            totalPoints *= scoringSystem.calculateCompletionBonus(task, player);
+            
+            // Apply streak bonus
+            totalPoints *= scoringSystem.calculateStreakBonus(player);
+            
+            // Apply perfect round bonus
+            totalPoints *= scoringSystem.calculatePerfectRoundBonus(player);
+            
+            // Apply teamwork bonus
+            totalPoints *= scoringSystem.calculateTeamworkBonus(player, helper);
+            
+            // Round to nearest integer
+            totalPoints = Math.round(totalPoints);
+            
+            return totalPoints;
+        } catch (error) {
+            console.error('Error calculating points:', error);
+            throw error;
+        }
+    }
+};
 
 // Game Core Module
 export class GameCore {
@@ -275,7 +425,7 @@ export class GameCore {
         }
     }
 
-    async handleTaskCompletion(playerId, taskId) {
+    async handleTaskCompletion(playerId, taskId, helperId = null) {
         try {
             const player = players.find(p => p.id === playerId);
             if (!player) {
@@ -288,26 +438,48 @@ export class GameCore {
             }
 
             const task = player.pendingTasks[taskIndex];
-            player.score += pointsPerCategory[task.category];
+            
+            // Calculate points
+            const helper = helperId ? players.find(p => p.id === helperId) : null;
+            const totalPoints = scoringSystem.calculateTotalPoints(task, player, helper);
+
+            // Update player score
+            player.score += totalPoints;
+            
+            // Update streak
+            if (player.lastTaskCompleted && 
+                player.lastTaskCompleted.category === task.category) {
+                player.consecutiveCompletions++;
+            } else {
+                player.consecutiveCompletions = 1;
+            }
+            
+            // Update last completed task
+            player.lastTaskCompleted = task;
+
+            // Remove completed task
             player.pendingTasks.splice(taskIndex, 1);
 
-            // Add to sync queue
-            await dataSync.addSyncEvent('player-update', { ...player });
-            await realTime.broadcastEvent('task-completion', {
+            // Save game state
+            GameCore.saveGameState();
+
+            // Broadcast completion event
+            realTime.broadcastEvent('task-completion', {
                 playerId: playerId,
                 taskId: taskId,
-                points: pointsPerCategory[task.category]
+                helperId: helperId,
+                points: totalPoints,
+                newScore: player.score
             });
 
-            // Create backup
-            await backupSystem.createBackup();
-
-            // Monitor task completion
-            monitoring.checkHealth();
-
-            return true;
+            return {
+                taskId: taskId,
+                points: totalPoints,
+                newScore: player.score,
+                helperId: helperId
+            };
         } catch (error) {
-            monitoring.trackError(error);
+            console.error('Error handling task completion:', error);
             throw error;
         }
     }
@@ -607,6 +779,94 @@ export class GameCore {
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = seconds % 60;
         return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+    }
+
+    static calculatePlayerRankings() {
+        try {
+            return players
+                .sort((a, b) => b.score - a.score)
+                .map((player, index) => ({
+                    ...player,
+                    rank: index + 1,
+                    score: player.score,
+                    tasksCompleted: player.tasks.filter(t => !t.subtasks.some(s => !s.completed)).length,
+                    bigTasksCompleted: player.tasks.filter(t => t.isBigTask && !t.subtasks.some(s => !s.completed)).length,
+                    perfectRounds: player.perfectRounds || 0,
+                    streak: player.consecutiveCompletions || 0
+                }));
+        } catch (error) {
+            console.error('Error calculating rankings:', error);
+            throw error;
+        }
+    }
+
+    static getTopPlayers(count = 3) {
+        try {
+            const rankings = this.calculatePlayerRankings();
+            return rankings.slice(0, count);
+        } catch (error) {
+            console.error('Error getting top players:', error);
+            throw error;
+        }
+    }
+
+    static getTaskStats() {
+        try {
+            const stats = {
+                totalTasks: 0,
+                completedTasks: 0,
+                bigTasks: 0,
+                byCategory: {},
+                byComplexity: {},
+                streaks: 0,
+                perfectRounds: 0
+            };
+
+            players.forEach(player => {
+                player.tasks.forEach(task => {
+                    stats.totalTasks++;
+                    if (task.isBigTask) stats.bigTasks++;
+                    
+                    if (!stats.byCategory[task.category]) {
+                        stats.byCategory[task.category] = { total: 0, completed: 0 };
+                    }
+                    stats.byCategory[task.category].total++;
+
+                    if (task.complexity) {
+                        if (!stats.byComplexity[task.complexity]) {
+                            stats.byComplexity[task.complexity] = { total: 0, completed: 0 };
+                        }
+                        stats.byComplexity[task.complexity].total++;
+                    }
+                });
+
+                // Count completed tasks
+                const completedTasks = player.tasks.filter(task => 
+                    !task.subtasks.some(subtask => !subtask.completed)
+                );
+                stats.completedTasks += completedTasks.length;
+
+                completedTasks.forEach(task => {
+                    stats.byCategory[task.category].completed++;
+                    if (task.complexity) {
+                        stats.byComplexity[task.complexity].completed++;
+                    }
+                });
+
+                // Count streaks and perfect rounds
+                if (player.consecutiveCompletions >= defaultConfig.streakLength) {
+                    stats.streaks++;
+                }
+                if (player.perfectRounds) {
+                    stats.perfectRounds += player.perfectRounds;
+                }
+            });
+
+            return stats;
+        } catch (error) {
+            console.error('Error getting task stats:', error);
+            throw error;
+        }
     }
 }
 
