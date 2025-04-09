@@ -35,9 +35,9 @@ jobs:
     # Install dependencies
     - name: Install dependencies
       run: |
-        npm ci
-        cd client && npm ci
-        cd ../server && npm ci
+        npm install
+        cd client && npm install
+        cd ../server && npm install
 
     # Build Server
     - name: Build Server
