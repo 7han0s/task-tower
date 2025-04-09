@@ -14,7 +14,12 @@ let phaseTimeRemaining = 0;
 let nextPlayerId = 1; // Keep track of the next ID to assign
 let nextTaskId = 1; // Keep track of task IDs within a round
 let actionsTakenThisRound = {}; // Track actions per player { playerId: boolean }
-const pointsPerCategory = { personal: 1, chores: 2, work: 3 };
+const pointsPerCategory = { 
+    personal: 1, 
+    chores: 2, 
+    work: 3, 
+    big: 1.5 // Multiplier for big tasks
+};
 let gamePaused = false;
 
 // Configuration options (now customizable)
@@ -28,7 +33,12 @@ const defaultConfig = {
     minRoundTime: 10, // Minimum round time
     maxRoundTime: 60, // Maximum round time
     minBreakTime: 5, // Minimum break time
-    maxBreakTime: 30 // Maximum break time
+    maxBreakTime: 30, // Maximum break time
+    taskCategories: ['personal', 'chores', 'work', 'big'],
+    taskComplexityLevels: [1, 2, 3], // Easy, Medium, Hard
+    taskCompletionBonus: 1.2, // Bonus multiplier for completing tasks
+    consecutiveTaskBonus: 1.5, // Bonus multiplier for completing tasks in sequence
+    bigTaskBonus: 2.0 // Bonus multiplier for big tasks
 };
 
 // Import Google Sheets integration and data sync
@@ -37,6 +47,48 @@ import { dataSync } from './data-sync.js';
 import { realTime } from './real-time.js';
 import { backupSystem } from './backup-system.js';
 import { monitoring } from './monitoring.js';
+
+// Task Manager
+const taskManager = {
+    generateTask: (category, isBigTask = false) => {
+        const basePoints = pointsPerCategory[category] || 1;
+        const multiplier = isBigTask ? pointsPerCategory.big : 1;
+        return {
+            id: nextTaskId++,
+            category: category,
+            isBigTask: isBigTask,
+            points: basePoints * multiplier,
+            subtasks: []
+        };
+    },
+    
+    addSubtask: (task, description, isBigTask = false) => {
+        const subtask = {
+            id: nextTaskId++,
+            description: description,
+            isBigTask: isBigTask,
+            completed: false
+        };
+        task.subtasks.push(subtask);
+        return subtask;
+    },
+
+    calculateTaskPoints: (task) => {
+        let totalPoints = task.points;
+        
+        // Add points from subtasks
+        task.subtasks.forEach(subtask => {
+            if (subtask.completed) {
+                totalPoints += pointsPerCategory[subtask.category] || 1;
+            }
+        });
+
+        // Apply complexity multiplier
+        totalPoints *= task.complexity || 1;
+
+        return totalPoints;
+    }
+};
 
 // Game Core Module
 export class GameCore {
@@ -305,33 +357,145 @@ export class GameCore {
         }
     }
 
+    static addTask(playerId, category, isBigTask = false) {
+        try {
+            const player = players.find(p => p.id === playerId);
+            if (!player) {
+                throw new Error(`Player ${playerId} not found`);
+            }
+
+            const task = taskManager.generateTask(category, isBigTask);
+            player.tasks.push(task);
+            GameCore.saveGameState();
+            return task;
+        } catch (error) {
+            console.error('Error adding task:', error);
+            throw error;
+        }
+    }
+
     static handleTaskCompletion(playerId, taskId) {
         try {
             const player = players.find(p => p.id === playerId);
-            if (player) {
-                const taskIndex = player.tasks.findIndex(t => t.id === taskId);
-                if (taskIndex !== -1) {
-                    const task = player.tasks[taskIndex];
-                    const points = pointsPerCategory[task.category] || 1;
-                    player.score += points;
-                    player.tasks.splice(taskIndex, 1);
-                    GameCore.saveGameState();
-                }
+            if (!player) {
+                throw new Error(`Player ${playerId} not found`);
             }
+
+            const taskIndex = player.tasks.findIndex(t => t.id === taskId);
+            if (taskIndex === -1) {
+                throw new Error(`Task ${taskId} not found for player ${playerId}`);
+            }
+
+            const task = player.tasks[taskIndex];
+            let totalPoints = taskManager.calculateTaskPoints(task);
+
+            // Apply completion bonus
+            totalPoints *= defaultConfig.taskCompletionBonus;
+
+            // Check for consecutive task completion bonus
+            if (player.lastTaskCompleted && 
+                player.lastTaskCompleted.category === task.category) {
+                totalPoints *= defaultConfig.consecutiveTaskBonus;
+            }
+
+            // Apply big task bonus
+            if (task.isBigTask) {
+                totalPoints *= defaultConfig.bigTaskBonus;
+            }
+
+            // Update player score
+            player.score += totalPoints;
+            player.lastTaskCompleted = task;
+
+            // Remove completed task
+            player.tasks.splice(taskIndex, 1);
+
+            // Save game state
+            GameCore.saveGameState();
+
+            return {
+                taskId: taskId,
+                points: totalPoints,
+                newScore: player.score
+            };
         } catch (error) {
             console.error('Error handling task completion:', error);
             throw error;
         }
     }
 
-    static endGame() {
+    static calculatePlayerRankings() {
         try {
-            currentPhase = 'ended';
-            clearInterval(timerInterval);
-            GameCore.saveGameState();
-            console.log('Game ended');
+            return players
+                .sort((a, b) => b.score - a.score)
+                .map((player, index) => ({
+                    ...player,
+                    rank: index + 1,
+                    score: player.score,
+                    tasksCompleted: player.tasks.filter(t => !t.subtasks.some(s => !s.completed)).length,
+                    bigTasksCompleted: player.tasks.filter(t => t.isBigTask && !t.subtasks.some(s => !s.completed)).length
+                }));
         } catch (error) {
-            console.error('Error ending game:', error);
+            console.error('Error calculating rankings:', error);
+            throw error;
+        }
+    }
+
+    static getTopPlayers(count = 3) {
+        try {
+            const rankings = this.calculatePlayerRankings();
+            return rankings.slice(0, count);
+        } catch (error) {
+            console.error('Error getting top players:', error);
+            throw error;
+        }
+    }
+
+    static getTaskStats() {
+        try {
+            const stats = {
+                totalTasks: 0,
+                completedTasks: 0,
+                bigTasks: 0,
+                byCategory: {},
+                byComplexity: {}
+            };
+
+            players.forEach(player => {
+                player.tasks.forEach(task => {
+                    stats.totalTasks++;
+                    if (task.isBigTask) stats.bigTasks++;
+                    
+                    if (!stats.byCategory[task.category]) {
+                        stats.byCategory[task.category] = { total: 0, completed: 0 };
+                    }
+                    stats.byCategory[task.category].total++;
+
+                    if (task.complexity) {
+                        if (!stats.byComplexity[task.complexity]) {
+                            stats.byComplexity[task.complexity] = { total: 0, completed: 0 };
+                        }
+                        stats.byComplexity[task.complexity].total++;
+                    }
+                });
+
+                // Count completed tasks
+                const completedTasks = player.tasks.filter(task => 
+                    !task.subtasks.some(subtask => !subtask.completed)
+                );
+                stats.completedTasks += completedTasks.length;
+
+                completedTasks.forEach(task => {
+                    stats.byCategory[task.category].completed++;
+                    if (task.complexity) {
+                        stats.byComplexity[task.complexity].completed++;
+                    }
+                });
+            });
+
+            return stats;
+        } catch (error) {
+            console.error('Error getting task stats:', error);
             throw error;
         }
     }
