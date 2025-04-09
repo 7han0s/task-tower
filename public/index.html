@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Tower Plus</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom styles -->
+    <style>
+        /* Add any custom styles here */
+        body {
+            min-height: 100vh;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        
+        #app {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Game UI will be rendered here -->
+        <div class="flex flex-col items-center">
+            <h1 class="text-4xl font-bold mb-8">Task Tower Plus</h1>
+            
+            <!-- Game container -->
+            <div id="game-container" class="w-full max-w-4xl">
+                <!-- Loading state -->
+                <div id="loading" class="flex flex-col items-center justify-center h-screen">
+                    <div class="animate-spin rounded-full h-32 w-32 border-b-2 border-white"></div>
+                    <p class="mt-4">Loading game...</p>
+                </div>
+                
+                <!-- Error state -->
+                <div id="error" class="hidden text-red-500">
+                    <p>Error: <span id="error-message"></span></p>
+                </div>
+                
+                <!-- Main game content -->
+                <div id="game-content" class="hidden">
+                    <!-- Add your game components here -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main bundle -->
+    <script type="module" src="/main.js"></script>
+</body>
+</html>
