@@ -1,0 +1,5 @@
+| description | category | time | big |
+| --- | --- | --- | --- |
+| Complete project documentation | work | 120 | true |
+| Buy groceries | chores | 30 | false |
+| Learn new programming language | personal | 60 | true
