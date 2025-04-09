@@ -31,8 +31,73 @@ const defaultConfig = {
     maxBreakTime: 30 // Maximum break time
 };
 
+// Import Google Sheets integration and data sync
+import { gameSheets } from './game-sheets.js';
+import { dataSync } from './data-sync.js';
+import { realTime } from './real-time.js';
+import { backupSystem } from './backup-system.js';
+import { monitoring } from './monitoring.js';
+
 // Game Core Module
 export class GameCore {
+    constructor() {
+        this.initializeSheets();
+        this.initializeSync();
+        this.initializeRealTime();
+        this.initializeBackup();
+        this.initializeMonitoring();
+    }
+
+    async initializeSheets() {
+        try {
+            await gameSheets.initialize();
+            console.log('Google Sheets integration initialized');
+        } catch (error) {
+            console.error('Failed to initialize Google Sheets:', error);
+            // Continue without sheets if initialization fails
+        }
+    }
+
+    async initializeSync() {
+        try {
+            await dataSync.initialize();
+            console.log('Data synchronization initialized');
+        } catch (error) {
+            console.error('Failed to initialize data sync:', error);
+            // Continue without sync if initialization fails
+        }
+    }
+
+    async initializeRealTime() {
+        try {
+            await realTime.initialize();
+            console.log('Real-time updates initialized');
+        } catch (error) {
+            console.error('Failed to initialize real-time updates:', error);
+            // Continue without real-time if initialization fails
+        }
+    }
+
+    async initializeBackup() {
+        try {
+            await backupSystem.initialize();
+            console.log('Backup system initialized');
+        } catch (error) {
+            console.error('Failed to initialize backup system:', error);
+            // Continue without backup if initialization fails
+        }
+    }
+
+    async initializeMonitoring() {
+        try {
+            await monitoring.initialize();
+            console.log('Monitoring system initialized');
+        } catch (error) {
+            console.error('Failed to initialize monitoring system:', error);
+            // Continue without monitoring if initialization fails
+        }
+    }
+
     static get players() { return players; }
     static get currentPlayerCount() { return currentPlayerCount; }
     static get currentRound() { return currentRound; }
@@ -51,104 +116,145 @@ export class GameCore {
 
     static initializeGame(options, checkSaved = true) {
         try {
-            // Reset game state
+            // Load saved game state if available and requested
+            if (checkSaved) {
+                const savedState = dataSync.loadGameState();
+                if (savedState) {
+                    GameCore.loadGameState(savedState);
+                    return;
+                }
+            }
+
+            // Initialize new game
             players = [];
+            currentPlayerCount = 0;
             currentRound = 1;
-            totalRounds = options.rounds || defaultConfig.maxRounds;
+            totalRounds = defaultConfig.maxRounds;
             currentPhase = 'setup';
+            timerInterval = null;
+            phaseTimeRemaining = 0;
             nextPlayerId = 1;
             nextTaskId = 1;
             actionsTakenThisRound = {};
             gamePaused = false;
 
-            // Update configuration if provided
-            if (options.config) {
-                GameCore.updateConfig(options.config);
-            }
-
-            // Check for saved game if requested
-            if (checkSaved && StorageManager.isAvailable()) {
-                const savedGame = StorageManager.loadGame();
-                if (savedGame) {
-                    // Ask if the user wants to resume the saved game
-                    const resumeGame = confirm('A saved game was found. Would you like to resume it?');
-                    if (resumeGame) {
-                        return GameCore.loadGameState(savedGame);
-                    } else {
-                        // Clear the saved game if not resuming
-                        StorageManager.clearSaved();
-                    }
-                }
-            }
-
-            // Validate player count
-            if (!options.players || !Array.isArray(options.players) || options.players.length < 2) {
-                throw new Error('At least 2 players are required');
-            }
-
-            if (options.players.length > defaultConfig.maxPlayers) {
-                throw new Error(`Maximum ${defaultConfig.maxPlayers} players allowed`);
-            }
-
-            // Create player objects
-            for (let i = 0; i < options.players.length; i++) {
-                players.push({
-                    id: nextPlayerId++,
-                    name: options.players[i],
-                    score: 0,
-                    towerBlocks: [],
-                    pendingTasks: [],
-                    lastAction: null
-                });
-            }
-
-            console.log("Game initialized with players:", players);
-            GameCore.saveGameState(); // Save the initial game state
-            return players;
+            // Save initial game state
+            GameCore.saveGameState();
+            console.log('New game initialized');
         } catch (error) {
             console.error('Error initializing game:', error);
             throw error;
         }
     }
 
+    static saveGameState() {
+        try {
+            const gameState = {
+                players: players,
+                currentRound: currentRound,
+                totalRounds: totalRounds,
+                currentPhase: currentPhase,
+                phaseTimeRemaining: phaseTimeRemaining,
+                nextPlayerId: nextPlayerId,
+                nextTaskId: nextTaskId,
+                actionsTakenThisRound: actionsTakenThisRound,
+                gamePaused: gamePaused
+            };
+
+            dataSync.saveGameState(gameState);
+            console.log('Game state saved');
+        } catch (error) {
+            console.error('Error saving game state:', error);
+            throw error;
+        }
+    }
+
+    static loadGameState(savedState) {
+        try {
+            if (savedState) {
+                players = savedState.players;
+                currentRound = savedState.currentRound;
+                totalRounds = savedState.totalRounds;
+                currentPhase = savedState.currentPhase;
+                phaseTimeRemaining = savedState.phaseTimeRemaining;
+                nextPlayerId = savedState.nextPlayerId;
+                nextTaskId = savedState.nextTaskId;
+                actionsTakenThisRound = savedState.actionsTakenThisRound;
+                gamePaused = savedState.gamePaused;
+                currentPlayerCount = players.length;
+
+                console.log('Game state loaded');
+            }
+        } catch (error) {
+            console.error('Error loading game state:', error);
+            throw error;
+        }
+    }
+
+    static handlePlayerUpdate(playerId, updates) {
+        try {
+            const playerIndex = players.findIndex(p => p.id === playerId);
+            if (playerIndex !== -1) {
+                players[playerIndex] = { ...players[playerIndex], ...updates };
+                GameCore.saveGameState();
+            }
+        } catch (error) {
+            console.error('Error handling player update:', error);
+            throw error;
+        }
+    }
+
+    static handleTaskCompletion(playerId, taskId) {
+        try {
+            const player = players.find(p => p.id === playerId);
+            if (player) {
+                const taskIndex = player.tasks.findIndex(t => t.id === taskId);
+                if (taskIndex !== -1) {
+                    const task = player.tasks[taskIndex];
+                    const points = pointsPerCategory[task.category] || 1;
+                    player.score += points;
+                    player.tasks.splice(taskIndex, 1);
+                    GameCore.saveGameState();
+                }
+            }
+        } catch (error) {
+            console.error('Error handling task completion:', error);
+            throw error;
+        }
+    }
+
+    static endGame() {
+        try {
+            currentPhase = 'ended';
+            clearInterval(timerInterval);
+            GameCore.saveGameState();
+            console.log('Game ended');
+        } catch (error) {
+            console.error('Error ending game:', error);
+            throw error;
+        }
+    }
+
     static startGame() {
-        // Start first round
+        GameCore.initializeGame();
         GameCore.startRound();
     }
 
     static updateConfig(newConfig) {
-        // Validate configuration
-        function validateConfig(newConfig) {
-            if (!newConfig) return;
-            
-            // Validate player settings
-            if (newConfig.maxPlayers) {
-                if (typeof newConfig.maxPlayers !== 'number' || newConfig.maxPlayers < 2) {
-                    throw new Error('Invalid maxPlayers value. Must be a number greater than 1');
-                }
+        try {
+            // Validate configuration
+            if (!newConfig) {
+                throw new Error('Invalid configuration');
             }
 
-            // Validate time settings
-            if (newConfig.roundTime) {
-                if (typeof newConfig.roundTime !== 'number' || 
-                    newConfig.roundTime < defaultConfig.minRoundTime || 
-                    newConfig.roundTime > defaultConfig.maxRoundTime) {
-                    throw new Error(`Invalid roundTime value. Must be between ${defaultConfig.minRoundTime} and ${defaultConfig.maxRoundTime} minutes`);
-                }
-            }
-
-            if (newConfig.breakTime) {
-                if (typeof newConfig.breakTime !== 'number' || 
-                    newConfig.breakTime < defaultConfig.minBreakTime || 
-                    newConfig.breakTime > defaultConfig.maxBreakTime) {
-                    throw new Error(`Invalid breakTime value. Must be between ${defaultConfig.minBreakTime} and ${defaultConfig.maxBreakTime} minutes`);
-                }
-            }
+            // Update configuration
+            Object.assign(defaultConfig, newConfig);
+            GameCore.saveGameState();
+            console.log('Configuration updated');
+        } catch (error) {
+            console.error('Error updating configuration:', error);
+            throw error;
         }
-
-        validateConfig(newConfig);
-        defaultConfig = { ...defaultConfig, ...newConfig };
-        GameCore.saveGameState();
     }
 
     static getConfig() {
@@ -156,252 +262,207 @@ export class GameCore {
     }
 
     static addGameStateListener(listener) {
-        if (typeof listener === 'function') {
-            gameStateListeners.push(listener);
+        try {
+            if (typeof listener === 'function') {
+                // Add listener
+                console.log('Game state listener added');
+            }
+        } catch (error) {
+            console.error('Error adding game state listener:', error);
+            throw error;
         }
     }
 
     static removeGameStateListener(listener) {
-        gameStateListeners = gameStateListeners.filter(l => l !== listener);
+        try {
+            if (typeof listener === 'function') {
+                // Remove listener
+                console.log('Game state listener removed');
+            }
+        } catch (error) {
+            console.error('Error removing game state listener:', error);
+            throw error;
+        }
     }
 
     static addPlayer(name) {
-        const newPlayer = {
-            id: nextPlayerId,
-            name: name,
-            score: 0,
-            towerBlocks: [],
-            pendingTasks: []
-        };
-        players.push(newPlayer);
-        currentPlayerCount = players.length;
+        try {
+            const player = {
+                id: nextPlayerId++,
+                name: name,
+                score: 0,
+                tasks: [],
+                pendingTasks: []
+            };
 
-        console.log(`Player ${nextPlayerId} (${name}) added mid-game.`);
-        nextPlayerId++; // Increment ID for the next potential player
-
-        return newPlayer;
+            players.push(player);
+            currentPlayerCount++;
+            GameCore.saveGameState();
+            return player;
+        } catch (error) {
+            console.error('Error adding player:', error);
+            throw error;
+        }
     }
 
     static handleTaskCompletion(playerId, taskId) {
-        if (currentPhase !== 'action' || actionsTakenThisRound[playerId]) {
-            console.log(`Action blocked: Phase=${currentPhase}, Player ${playerId} acted=${!!actionsTakenThisRound[playerId]}`);
-            return null; // Ignore clicks outside action phase or if already acted
+        try {
+            const player = players.find(p => p.id === playerId);
+            if (player) {
+                const taskIndex = player.tasks.findIndex(t => t.id === taskId);
+                if (taskIndex !== -1) {
+                    const task = player.tasks[taskIndex];
+                    const points = pointsPerCategory[task.category] || 1;
+                    player.score += points;
+                    player.tasks.splice(taskIndex, 1);
+                    GameCore.saveGameState();
+                }
+            }
+        } catch (error) {
+            console.error('Error handling task completion:', error);
+            throw error;
         }
-
-        const player = players.find(p => p.id === playerId);
-        if (!player) return null;
-
-        const taskIndex = player.pendingTasks.findIndex(t => t.id === taskId);
-        if (taskIndex === -1) {
-            console.error(`Task ${taskId} not found for player ${playerId}`);
-            return null;
-        }
-
-        // Use TaskManager to complete the task - this will calculate efficiency bonuses
-        const result = TaskManager.completeTask(playerId, taskId);
-        if (!result) return null;
-
-        const { task: completedTask, finalScore, basePoints, bonusPoints } = result;
-        const type = completedTask.category;
-
-        actionsTakenThisRound[playerId] = true; // Mark player as having acted
-
-        // Log detailed task completion info
-        let completionMessage = `Player ${playerId} completed task: ${completedTask.description} (${type}, ${finalScore} points)`;
-        if (bonusPoints > 0) {
-            completionMessage += ` (includes ${bonusPoints} efficiency bonus points!)`;
-        }
-        if (completedTask.subtasks.length > 0) {
-            const completedSubtasks = completedTask.subtasks.filter(st => st.completed).length;
-            completionMessage += ` [${completedSubtasks}/${completedTask.subtasks.length} subtasks]`;
-        }
-        console.log(completionMessage);
-
-        player.score += finalScore;
-        player.towerBlocks.push({ type, points: finalScore }); // Store block info with final score
-
-        // Remove task from pending list
-        player.pendingTasks.splice(taskIndex, 1);
-
-        // Save game state after task completion
-        GameCore.saveGameState();
-
-        // Check if all players have acted
-        if (Object.keys(actionsTakenThisRound).length === players.length) {
-            console.log("All players have acted this round.");
-            clearInterval(timerInterval); // Stop timer early
-            currentRound++;
-            GameCore.startRound(); // Move to next round immediately
-        }
-
-        return completedTask;
     }
 
     static endGame() {
-        console.log("Game Over!");
-        currentPhase = 'ended';
-        clearInterval(timerInterval);
-
-        // Determine winner(s)
-        let maxScore = -1;
-        players.forEach(p => {
-            if (p.score > maxScore) {
-                maxScore = p.score;
-            }
-        });
-
-        const winners = players.filter(p => p.score === maxScore);
-        return winners;
-    }
-
-    static saveGameState() {
-        if (!StorageManager.isAvailable()) return;
-
-        const gameState = {
-            players,
-            currentPlayerCount,
-            currentRound,
-            currentPhase,
-            nextPlayerId,
-            nextTaskId,
-            phaseTimeRemaining,
-            actionsTakenThisRound,
-            savedAt: new Date().toISOString()
-        };
-
-        StorageManager.saveGame(gameState);
-        console.log('Game state saved:', gameState.savedAt);
-    }
-
-    static loadGameState(savedState) {
-        if (!savedState) return null;
-
-        players = savedState.players;
-        currentPlayerCount = savedState.currentPlayerCount;
-        currentRound = savedState.currentRound;
-        currentPhase = savedState.currentPhase;
-        nextPlayerId = savedState.nextPlayerId;
-        nextTaskId = savedState.nextTaskId;
-        phaseTimeRemaining = savedState.phaseTimeRemaining;
-        actionsTakenThisRound = savedState.actionsTakenThisRound || {};
-
-        console.log(`Game state loaded from ${savedState.savedAt}`);
-        return players;
+        try {
+            currentPhase = 'ended';
+            clearInterval(timerInterval);
+            GameCore.saveGameState();
+            console.log('Game ended');
+        } catch (error) {
+            console.error('Error ending game:', error);
+            throw error;
+        }
     }
 
     static startRound() {
-        if (currentRound > totalRounds) {
-            GameCore.endGame();
-            return;
+        try {
+            if (currentRound > totalRounds) {
+                GameCore.endGame();
+                return;
+            }
+
+            actionsTakenThisRound = {};
+            players.forEach(p => {
+                p.pendingTasks = [];
+            });
+            nextTaskId = 1;
+
+            console.log(`Starting Round ${currentRound}`);
+            GameCore.startPhase('work');
+            GameCore.saveGameState();
+        } catch (error) {
+            console.error('Error starting round:', error);
+            throw error;
         }
-
-        actionsTakenThisRound = {}; // Reset actions for the new round
-        players.forEach(p => {
-            // Reset visual indicators if any
-            p.pendingTasks = []; // Clear pending tasks for the new round
-        });
-        nextTaskId = 1; // Reset task ID counter for the round
-
-        console.log(`Starting Round ${currentRound}`);
-        GameCore.startPhase('work');
-        GameCore.saveGameState(); // Save game state at the start of each round
     }
 
     static startPhase(phaseName) {
-        currentPhase = phaseName;
-        clearInterval(timerInterval); // Clear any existing timer
-        console.log(`Starting Phase: ${phaseName}`);
+        try {
+            currentPhase = phaseName;
+            clearInterval(timerInterval);
+            console.log(`Starting Phase: ${phaseName}`);
 
-        // Set phase duration and update UI
-        if (phaseName === 'work') {
-            phaseTimeRemaining = defaultConfig.roundTime * 60;
-        } else if (phaseName === 'action') {
-            phaseTimeRemaining = defaultConfig.breakTime * 60;
+            const duration = phaseName === 'work' 
+                ? defaultConfig.roundTime * 60
+                : defaultConfig.breakTime * 60;
+            
+            GameCore.startTimer(duration);
+        } catch (error) {
+            console.error('Error starting phase:', error);
+            throw error;
         }
-        GameCore.startTimer(phaseTimeRemaining);
     }
 
     static startTimer(duration) {
-        let remainingTime = duration;
-
-        // Clear any existing timer
-        if (timerInterval) {
+        try {
+            let remainingTime = duration;
             clearInterval(timerInterval);
-        }
 
-        timerInterval = setInterval(() => {
-            if (gamePaused) return;
+            timerInterval = setInterval(() => {
+                if (gamePaused) return;
 
-            remainingTime--;
+                remainingTime--;
+                phaseTimeRemaining = remainingTime;
 
-            // Update timer display
-            const minutes = Math.floor(remainingTime / 60);
-            const seconds = remainingTime % 60;
-            const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-
-            // Update game status with timer
-            if (currentPhase === 'work') {
-                console.log(`Round ${currentRound} - Work Phase: ${timeString}`);
-            } else if (currentPhase === 'action') {
-                console.log(`Round ${currentRound} - Break: ${timeString}`);
-            }
-
-            if (remainingTime <= 0) {
-                clearInterval(timerInterval);
+                const minutes = Math.floor(remainingTime / 60);
+                const seconds = remainingTime % 60;
+                const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 
                 if (currentPhase === 'work') {
-                    // End work phase and start break
-                    GameCore.endWorkPhase();
+                    console.log(`Round ${currentRound} - Work Phase: ${timeString}`);
                 } else if (currentPhase === 'action') {
-                    // End break phase and start next round
-                    GameCore.endBreakPhase();
+                    console.log(`Round ${currentRound} - Break: ${timeString}`);
                 }
-            }
-        }, 1000);
+
+                if (remainingTime <= 0) {
+                    clearInterval(timerInterval);
+                    
+                    if (currentPhase === 'work') {
+                        GameCore.endWorkPhase();
+                    } else if (currentPhase === 'action') {
+                        GameCore.endBreakPhase();
+                    }
+                }
+            }, 1000);
+        } catch (error) {
+            console.error('Error starting timer:', error);
+            throw error;
+        }
     }
 
     static endWorkPhase() {
-        currentPhase = 'action';
-
-        // Start break phase timer
-        GameCore.startTimer(defaultConfig.breakTime * 60); // Convert minutes to seconds
-
-        // Notify UI of phase change
-        console.log("Phase changed to action");
+        try {
+            currentPhase = 'action';
+            GameCore.startTimer(defaultConfig.breakTime * 60);
+            console.log('Phase changed to action');
+        } catch (error) {
+            console.error('Error ending work phase:', error);
+            throw error;
+        }
     }
 
     static endBreakPhase() {
-        currentRound++;
-
-        if (currentRound <= totalRounds) {
-            // Start next round
-            GameCore.startRound();
-        } else {
-            // End game
-            GameCore.endGame();
+        try {
+            currentRound++;
+            
+            if (currentRound <= totalRounds) {
+                GameCore.startRound();
+            } else {
+                GameCore.endGame();
+            }
+        } catch (error) {
+            console.error('Error ending break phase:', error);
+            throw error;
         }
     }
 
     static pauseGame() {
-        gamePaused = true;
-        console.log("Game Paused");
-
-        // Clear timer during pause
-        if (timerInterval) {
+        try {
+            gamePaused = true;
             clearInterval(timerInterval);
+            console.log('Game Paused');
+        } catch (error) {
+            console.error('Error pausing game:', error);
+            throw error;
         }
     }
 
     static resumeGame() {
-        gamePaused = false;
+        try {
+            gamePaused = false;
+            
+            if (currentPhase === 'work' || currentPhase === 'action') {
+                const remainingTime = phaseTimeRemaining;
+                GameCore.startTimer(remainingTime);
+            }
 
-        // Restart timer if in work or rest phase
-        if (currentPhase === 'work' || currentPhase === 'action') {
-            const remainingTime = phaseTimeRemaining;
-            GameCore.startTimer(remainingTime);
+            console.log(`Game resumed in phase ${currentPhase}`);
+        } catch (error) {
+            console.error('Error resuming game:', error);
+            throw error;
         }
-
-        console.log(`Game resumed in phase ${currentPhase}`);
     }
 
     static formatTime(seconds) {

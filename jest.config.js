@@ -1,19 +1,34 @@
 module.exports = {
   testEnvironment: 'jsdom',
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
-  moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/scripts/$1',
-    '^@styles/(.*)$': '<rootDir>/styles/$1'
+  moduleDirectories: ['node_modules', 'scripts'],
+  moduleFileExtensions: ['js', 'jsx', 'json', 'vue'],
+  transform: {
+    '^.+\\.(js)$': [
+      'babel-jest',
+      {
+        presets: ['@babel/preset-env'],
+        plugins: ['@babel/plugin-transform-modules-commonjs'],
+        sourceType: 'unambiguous'
+      }
+    ]
   },
-  testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/dist/'],
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/scripts/$1'
+  },
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  testMatch: ['**/__tests__/**/*.js', '**/?(*.)+(spec|test).js'],
+  testPathIgnorePatterns: ['<rootDir>/node_modules/'],
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov'],
   coveragePathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/dist/'],
   collectCoverageFrom: [
     'scripts/**/*.js',
-    '!scripts/**/*.test.js'
+    '!scripts/**/*.test.js',
+    '!scripts/setup/**/*.js'
   ],
-  coverageDirectory: 'coverage',
-  coverageReporters: ['text', 'lcov'],
-  transform: {
-    '^.+\\.js$': ['babel-jest', { presets: ['@babel/preset-env'] }]
-  }
+  modulePathIgnorePatterns: ['<rootDir>/node_modules/'],
+  testEnvironmentOptions: {
+    customExportConditions: ['node', 'node-addons']
+  },
+  transformIgnorePatterns: ['<rootDir>/node_modules/']
 };

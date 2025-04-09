@@ -1,23 +1,25 @@
 // Jest setup file
-import '@testing-library/jest-dom';
 
-// Mock Supabase client
-global.supabase = {
-  from: jest.fn().mockReturnThis(),
-  select: jest.fn().mockReturnThis(),
-  insert: jest.fn().mockReturnThis(),
-  update: jest.fn().mockReturnThis(),
-  delete: jest.fn().mockReturnThis(),
-  upsert: jest.fn().mockReturnThis(),
-  count: jest.fn().mockReturnThis()
+// Mock console methods for testing
+const originalConsole = {
+  error: console.error,
+  warn: console.warn,
+  log: console.log
 };
 
-// Mock WebSocket
-global.WebSocket = class {
-  constructor() {}
-  send() {}
-  close() {}
-};
+beforeAll(() => {
+  // Mock console methods
+  console.error = jest.fn();
+  console.warn = jest.fn();
+  console.log = jest.fn();
+});
+
+afterAll(() => {
+  // Restore console methods
+  console.error = originalConsole.error;
+  console.warn = originalConsole.warn;
+  console.log = originalConsole.log;
+});
 
 // Mock localStorage
 const localStorageMock = {
@@ -26,17 +28,29 @@ const localStorageMock = {
   removeItem: jest.fn(),
   clear: jest.fn()
 };
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock
-});
 
-// Mock requestAnimationFrame
-window.requestAnimationFrame = callback => setTimeout(callback, 0);
+global.localStorage = localStorageMock;
 
-// Mock IntersectionObserver
-window.IntersectionObserver = class {
-  constructor() {}
-  observe() {}
-  unobserve() {}
-  disconnect() {}
+global.mockGameState = {
+  lobbyCode: 'TOWER_TEST',
+  currentPhase: 'work',
+  currentRound: 1,
+  timer: 1500,
+  playerCount: 2,
+  players: [
+    {
+      id: 1,
+      name: 'Player 1',
+      score: 10,
+      tasks: [{ id: 1, description: 'Test task', category: 'work' }],
+      towerBlocks: [{ id: 1, type: 'basic' }]
+    },
+    {
+      id: 2,
+      name: 'Player 2',
+      score: 5,
+      tasks: [],
+      towerBlocks: []
+    }
+  ]
 };
