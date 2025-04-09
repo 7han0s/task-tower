@@ -1,205 +1,127 @@
 # Task Tower Development Guidelines
 
-## 1. Code Organization
+## 1. Architecture Overview
 
-### 1.1 File Structure
+### 1.1 System Architecture
+Task Tower is a client-server application with the following components:
+
+- **Server**: Node.js/Express application handling Google Sheets API integration
+- **Client**: React application for the user interface
+- **Google Sheets**: Data storage and synchronization layer
+
+### 1.2 Component Structure
+
+#### Server
 ```
-scripts/
-├── core/
-│   ├── game-core.js
-│   ├── task-manager.js
-│   └── state-manager.js
-├── ui/
-│   ├── player-ui.js
-│   ├── task-ui.js
-│   └── control-ui.js
-├── multiplayer/
-│   ├── lobby.js
-│   ├── sync.js
-│   └── player.js
-└── services/
-    ├── storage.js
-    ├── audio.js
-    └── network.js
+server/
+├── src/
+│   ├── google-service.js    # Google Sheets API integration
+│   └── index.js            # Express server setup
+├── __tests__/              # Server-side tests
+└── package.json
 ```
 
-### 1.2 Naming Conventions
-- Use camelCase for variables and functions
-- Use PascalCase for classes
-- Use UPPER_SNAKE_CASE for constants
-- Use descriptive names
-- Avoid single-letter variables
+#### Client
+```
+client/
+├── src/
+│   ├── components/         # React components
+│   ├── services/          # Service layer
+│   │   └── game-sheets.js # Game state synchronization
+│   └── App.js             # Main application component
+├── __tests__/             # Client-side tests
+└── package.json
+```
 
-## 2. Code Style
+## 2. Development Standards
 
-### 2.1 JavaScript
-- Use ES6+ features
-- Use const/let instead of var
-- Use arrow functions when appropriate
-- Use template literals
-- Use destructuring
-- Use spread/rest operators
+### 2.1 Code Organization
 
-### 2.2 HTML
-- Use semantic elements
-- Proper heading hierarchy
-- Accessible attributes
-- ARIA labels when needed
+#### 2.1.1 File Structure
+- Keep related files grouped together
+- Use clear, descriptive directory names
+- Maintain consistent file naming conventions
 
-### 2.3 CSS
-- Use Tailwind CSS
-- Follow consistent naming
-- Use responsive modifiers
-- Use variants appropriately
+#### 2.1.2 Module Organization
+- Each module should have a single responsibility
+- Export only what's necessary
+- Document module purpose and usage
 
-## 3. Development Process
+### 2.2 Naming Conventions
+- **Variables/Functions**: camelCase
+- **Classes**: PascalCase
+- **Constants**: UPPER_SNAKE_CASE
+- **Environment Variables**: UPPER_SNAKE_CASE
 
-### 3.1 Feature Development
-1. Create feature branch
-2. Implement changes
-3. Write tests
-4. Update documentation
-5. Submit PR
-6. Code review
-7. Merge to main
+### 2.3 Environment Variables
+- Use `.env` files for development
+- Never commit sensitive credentials
+- Document required environment variables
 
-### 3.2 Bug Fixes
-1. Create bugfix branch
-2. Reproduce issue
-3. Fix bug
-4. Write test
-5. Update documentation
-6. Submit PR
-7. Code review
-8. Merge to main
+## 3. Implementation Guidelines
 
-## 4. Testing
+### 3.1 API Integration
+- Use proper error handling for API calls
+- Implement retry logic for failed requests
+- Cache responses when appropriate
+- Document API endpoints and usage
 
-### 4.1 Test Types
-- Unit tests
-- Integration tests
-- Performance tests
-- Security tests
-- UI tests
+### 3.2 State Management
+- Use Redux for global state
+- Keep state normalized
+- Document state structure
+- Implement proper error states
 
-### 4.2 Test Coverage
-- Core functionality: 100%
-- Edge cases: 90%
-- Error handling: 100%
-- Performance: 80%
-- Security: 100%
+### 3.3 Testing
+- Write unit tests for all functions
+- Write integration tests for API interactions
+- Test error handling scenarios
+- Maintain high test coverage
+
+## 4. Deployment
+
+### 4.1 Environment Setup
+- Use Docker for consistent environments
+- Document deployment steps
+- Automate deployment process
+- Monitor application performance
+
+### 4.2 Security
+- Validate all inputs
+- Sanitize user data
+- Use HTTPS
+- Regular security audits
 
 ## 5. Documentation
 
 ### 5.1 Code Documentation
-```javascript
-/**
- * Description of the function
- * @param {type} param1 Description of parameter
- * @returns {type} Description of return value
- */
-function functionName(param1) {
-    // Implementation
-}
-```
+- Document all public functions
+- Document complex logic
+- Document API endpoints
+- Document configuration options
 
-### 5.2 User Documentation
-- Keep README updated
-- Update API documentation
-- Update user guides
-- Update setup guides
-- Update troubleshooting
+### 5.2 Project Documentation
+- Maintain up-to-date README
+- Document setup instructions
+- Document architecture decisions
+- Document deployment process
 
-## 6. Performance
+## 6. Best Practices
 
-### 6.1 Optimization
-- Use efficient algorithms
-- Minimize DOM manipulation
-- Use event delegation
-- Optimize loops
-- Use Web Workers
+### 6.1 Performance
+- Optimize API calls
+- Implement proper caching
+- Minimize bundle size
+- Optimize images and assets
 
-### 6.2 Monitoring
-- Track performance metrics
-- Monitor resource usage
-- Track error rates
-- Monitor user experience
-- Monitor security
+### 6.2 Maintainability
+- Write clean, readable code
+- Follow SOLID principles
+- Implement proper error handling
+- Document complex logic
 
-## 7. Security
-
-### 7.1 Best Practices
+### 6.3 Security
 - Validate all inputs
-- Use proper sanitization
-- Check data types
-- Validate lengths
-- Use encryption
-
-### 7.2 Implementation
+- Sanitize user data
 - Use secure authentication
-- Implement rate limiting
-- Use proper session management
-- Validate tokens
-- Use secure storage
-
-## 8. Best Practices
-
-### 8.1 Code Quality
-- Write clean code
-- Follow style guide
-- Write tests
-- Document code
-- Use version control
-
-### 8.2 Development
-- Use feature branches
-- Write clear commit messages
-- Follow PR process
-- Review code thoroughly
-- Test thoroughly
-
-### 8.3 Performance
-- Optimize code
-- Optimize database
-- Optimize network
-- Optimize caching
-- Optimize assets
-
-### 8.4 Security
-- Use secure coding
-- Validate inputs
-- Use encryption
-- Use proper authentication
-- Use proper authorization
-
-## 9. Troubleshooting
-
-### 9.1 Common Issues
-1. Merge conflicts
-2. Test failures
-3. Build errors
-4. Deployment issues
-5. Performance bottlenecks
-
-### 9.2 Solutions
-1. Resolve conflicts
-2. Fix tests
-3. Fix build
-4. Fix deployment
-5. Optimize performance
-
-## 10. Maintenance
-
-### 10.1 Regular Tasks
-- Update dependencies
-- Fix bugs
-- Optimize performance
-- Update documentation
-- Review code
-
-### 10.2 Best Practices
-- Keep code clean
-- Keep dependencies up to date
-- Keep documentation up to date
-- Keep tests up to date
-- Keep security up to date
+- Regular security updates

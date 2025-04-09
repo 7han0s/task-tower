@@ -1,142 +1,170 @@
 # Task Tower Agent Instructions
 
-## 1. MCP Agent Guidelines
+## 1. Agent Overview
 
-### 1.1 Core Responsibilities
-- Manage project structure
-- Coordinate development phases
-- Track progress
-- Resolve conflicts
-- Maintain documentation, create new ones.
-- Update relevant documents from time to time or as required.
+Task Tower uses AI agents to assist with development, testing, and maintenance. This document provides guidelines for interacting with the agents.
 
-### 1.2 Decision Making
-- Prioritize tasks based on:
-  - Impact on core functionality
-  - Development complexity
-  - User experience
-  - Technical debt
+## 2. Agent Capabilities
 
-### 1.3 Communication
-- Maintain clear documentation
-- Update progress regularly
-- Report blockers
-- Document decisions
-- Update agent memory periodically and at milestones, big changes, impactful or as needed.
-- Teach the user how to use the tools. Tell, explain, why and hows of specific decisions, relevant lessons and insights during development.
+### 2.1 Development Assistance
+- Code generation and modification
+- Architecture design
+- Implementation guidance
+- Best practice recommendations
 
-## 2. Chat Agent Guidelines
+### 2.2 Testing Support
+- Test case generation
+- Test execution
+- Bug identification
+- Performance analysis
 
-### 2.1 Code Review
-- Focus on:
-  - Code quality
-  - Performance
-  - Security
-  - Maintainability
-  - Documentation
+### 2.3 Documentation
+- Code documentation
+- Architecture documentation
+- User guides
+- API documentation
 
-### 2.2 Implementation
-- Follow established patterns
-- Maintain consistency
-- Document changes
-- Test thoroughly
+## 3. Communication Protocol
 
-### 2.3 Problem Solving
-- Analyze root causes
-- Consider alternatives
-- Document decisions
-- Test solutions
+### 3.1 Request Format
+When making requests to the agent:
+1. Be specific about your requirements
+2. Provide context about the current state
+3. Specify any constraints or limitations
+4. Include relevant file paths or code snippets
 
-## 3. Development Workflow
+Example:
+```
+"Please help me implement the game state synchronization feature. The current implementation is in client/src/services/game-sheets.js. We need to ensure proper error handling and state management."
+```
 
-### 3.1 Phase 1: MVP
-- Focus on core features
-- Fix existing bugs
-- Get multiplayer working
-- Clean up code
+### 3.2 Response Format
+The agent will respond with:
+1. A summary of the changes
+2. The modified code
+3. Any necessary explanations
+4. Next steps if applicable
 
-### 3.2 Phase 2: Supabase Migration
-- Set up Supabase
-- Migrate features
-- Add real-time
-- Improve scalability
+## 4. Best Practices
 
-### 3.3 Phase 3: Enhancement
-- Add new features
-- Improve UI/UX
-- Add sound
-- Polish gameplay
+### 4.1 Code Review
+- Review generated code for correctness
+- Check for potential security issues
+- Verify performance implications
+- Ensure maintainability
 
-## 4. Technical Standards
+### 4.2 Testing
+- Run tests after code changes
+- Verify functionality
+- Check error handling
+- Test edge cases
 
-### 4.1 Code Quality
-- Follow JavaScript best practices
-- Use consistent naming
-- Maintain clean architecture
-- Document complex logic
+### 4.3 Documentation
+- Update relevant documentation
+- Keep READMEs current
+- Document API changes
+- Update user guides
 
-### 4.2 Performance
-- Optimize real-time updates
-- Minimize database queries
-- Cache when appropriate
-- Monitor performance
+## 5. Troubleshooting
 
-### 4.3 Security
+### 5.1 Common Issues
+1. Code generation errors
+2. Test failures
+3. Integration issues
+4. Performance bottlenecks
+
+### 5.2 Solutions
+1. Provide more context
+2. Break down complex tasks
+3. Specify requirements clearly
+4. Check for dependencies
+
+## 6. Security Considerations
+
+### 6.1 Code Security
 - Validate all inputs
+- Sanitize user data
 - Use proper authentication
 - Implement rate limiting
-- Secure sensitive data
 
-## 5. Documentation
+### 6.2 API Security
+- Use secure endpoints
+- Implement proper authentication
+- Validate API responses
+- Handle errors securely
 
-### 5.1 Code Documentation
-- Document all functions
-- Explain complex logic
+### 6.3 Data Security
+- Protect sensitive data
+- Implement proper encryption
+- Use secure storage
+- Follow data protection regulations
+
+## 7. Performance Optimization
+
+### 7.1 Code Optimization
+- Use efficient algorithms
+- Minimize DOM manipulation
+- Optimize loops
+- Use Web Workers
+
+### 7.2 API Optimization
+- Implement proper caching
+- Use batch requests
+- Minimize network calls
+- Implement retry logic
+
+### 7.3 Resource Management
+- Optimize memory usage
+- Manage database connections
+- Handle file operations efficiently
+- Implement proper cleanup
+
+## 8. Maintenance
+
+### 8.1 Code Updates
+- Keep dependencies up to date
+- Fix security vulnerabilities
+- Improve performance
+- Enhance functionality
+
+### 8.2 Documentation Updates
 - Update API documentation
-- Maintain READMEs
+- Update user guides
+- Update setup instructions
+- Update troubleshooting guides
 
-### 5.2 Project Documentation
-- Update specifications
-- Maintain implementation plans
-- Document decisions
-- Track progress
+### 8.3 Testing Updates
+- Add new test cases
+- Update existing tests
+- Improve test coverage
+- Fix failing tests
 
-## 6. Testing Requirements
+## 9. Best Practices
 
-### 6.1 Unit Tests
-- Test core functionality
-- Verify calculations
-- Check edge cases
-- Test error handling
+### 9.1 Code Quality
+- Write clean, readable code
+- Follow style guidelines
+- Write tests
+- Document code
+- Use version control
 
-### 6.2 Integration Tests
-- Test multiplayer
-- Verify real-time
-- Check state management
-- Test error recovery
-
-### 6.3 Performance Tests
-- Measure load times
-- Test real-time updates
-- Check memory usage
-- Monitor CPU usage
-
-## 7. Deployment Protocol
-
-### 7.1 Local Development
+### 9.2 Development Process
+- Use feature branches
+- Write clear commit messages
+- Follow PR process
+- Review code thoroughly
 - Test thoroughly
-- Verify functionality
-- Check performance
-- Fix issues
 
-### 7.2 Staging
-- Test deployment
-- Verify configuration
-- Check real-time
-- Test multiplayer
+### 9.3 Performance
+- Optimize code
+- Optimize database
+- Optimize network
+- Optimize caching
+- Optimize assets
 
-### 7.3 Production
-- Monitor deployment
-- Verify functionality
-- Check performance
-- Monitor errors
+### 9.4 Security
+- Use secure coding
+- Validate inputs
+- Use encryption
+- Use proper authentication
+- Use proper authorization

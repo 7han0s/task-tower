@@ -1,58 +1,61 @@
 # Task Tower
 
-A multiplayer task management game with real-time collaboration.
+A web-based game management system that uses Google Sheets as its backend data store.
 
-## Project Structure
+## Features
 
-```
-task-tower/
-├── client/           # Frontend React application
-│   ├── src/
-│   │   ├── components/    # React components
-│   │   ├── services/      # Service layer for API calls
-│   │   └── utils/        # Utility functions
-│   └── public/           # Static assets
-├── server/           # Backend Node.js server
-│   ├── src/
-│   │   ├── routes/      # API routes
-│   │   └── services/    # Backend services
-│   └── config/          # Configuration files
-└── scripts/          # Setup and utility scripts
-```
+- Game state management
+- Task management
+- Player management
+- Real-time synchronization
+- Secure authentication
+
+## Architecture
+
+Task Tower consists of three main components:
+
+1. **Client Application**: React-based frontend
+2. **Server Application**: Node.js/Express server
+3. **Google Sheets**: Data storage and synchronization layer
 
 ## Setup
 
 ### Prerequisites
-- Node.js 18+
-- npm or yarn
-- Google Cloud Project with Sheets API enabled
+
+- Node.js (v18 or higher)
+- npm (v8 or higher)
+- Google Cloud Platform account
+- Google Sheets API credentials
 
 ### Installation
 
-1. Install dependencies:
+1. Clone the repository:
 ```bash
-# Install server dependencies
+git clone [repository-url]
+cd task-tower
+```
+
+2. Install dependencies:
+```bash
 cd server
 npm install
-
-# Install client dependencies
 cd ../client
 npm install
 ```
 
-2. Set up environment variables:
-Create `.env` files in both server and client directories:
+3. Set up environment variables:
+Create a `.env` file in both `server` and `client` directories with the following variables:
 
+#### Server Environment Variables
 ```
-# server/.env
-PORT=3001
-NODE_ENV=development
-GOOGLE_CREDENTIALS={your_service_account_json}
-GOOGLE_SPREADSHEET_ID={your_spreadsheet_id}
+GOOGLE_CREDENTIALS={your-google-credentials}
+GOOGLE_SPREADSHEET_ID={your-spreadsheet-id}
+```
 
-# client/.env
-REACT_APP_API_URL=http://localhost:3001
-REACT_APP_GOOGLE_SPREADSHEET_ID={your_spreadsheet_id}
+#### Client Environment Variables
+```
+REACT_APP_API_URL=http://localhost:3000
+REACT_APP_GOOGLE_SPREADSHEET_ID={your-spreadsheet-id}
 ```
 
 ### Running the Application
@@ -60,7 +63,7 @@ REACT_APP_GOOGLE_SPREADSHEET_ID={your_spreadsheet_id}
 1. Start the server:
 ```bash
 cd server
-npm start
+npm run dev
 ```
 
 2. Start the client:
@@ -69,40 +72,64 @@ cd client
 npm start
 ```
 
+The application will be available at `http://localhost:3001`.
+
 ## Development
 
-### Server
-- Uses Express.js
-- Handles Google Sheets API integration
-- Provides REST API endpoints for game state
-- Runs on port 3001 by default
+### Code Structure
 
-### Client
-- Built with React
-- Communicates with server via REST API
-- Handles real-time game state updates
-- Runs on port 3000 by default
+#### Server
+```
+server/
+├── src/
+│   ├── google-service.js    # Google Sheets API integration
+│   └── index.js            # Express server setup
+├── __tests__/              # Server-side tests
+└── package.json
+```
 
-## API Documentation
+#### Client
+```
+client/
+├── src/
+│   ├── components/         # React components
+│   ├── services/          # Service layer
+│   │   └── game-sheets.js # Game state synchronization
+│   └── App.js             # Main application component
+├── __tests__/             # Client-side tests
+└── package.json
+```
 
-### Game State API
+### Testing
 
-- `GET /api/game-state` - Get current game state
-- `POST /api/game-state` - Update game state
+Run tests for both server and client:
+```bash
+cd server
+npm test
 
-### Player Data API
+cd ../client
+npm test
+```
 
-- `GET /api/player-data` - Get player data
-- `POST /api/player-data` - Update player data
+## Deployment
+
+The application can be deployed using Docker containers. The deployment process is automated through GitHub Actions.
+
+## Security
+
+- All API endpoints are protected
+- Input validation and sanitization
+- Secure authentication
+- Encrypted communication (HTTPS)
 
 ## Contributing
 
 1. Fork the repository
-2. Create your feature branch
+2. Create a feature branch
 3. Commit your changes
 4. Push to the branch
-5. Create a new Pull Request
+5. Create a Pull Request
 
 ## License
 
-MIT
+MIT License
