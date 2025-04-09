@@ -6,14 +6,16 @@ const API_URL = 'http://localhost:3001/api/game-state';
 const GameBoard = () => {
     const [gameState, setGameState] = useState({
         lobbyCode: '',
-        currentPhase: '',
-        currentRound: 0,
-        timer: 0,
-        playerCount: 0,
+        currentPhase: 'work',
+        currentRound: 1,
+        timer: 600,
+        playerCount: 1,
         players: []
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
+    const [taskInput, setTaskInput] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('personal');
 
     const fetchGameState = async () => {
         try {
@@ -35,13 +37,13 @@ const GameBoard = () => {
                     lobbyCode: 'GAME123',
                     currentPhase: 'work',
                     currentRound: 1,
-                    timer: 60,
+                    timer: 600,
                     playerCount: 1,
                     players: [{
                         id: 1,
                         name: 'Player 1',
                         score: 0,
-                        tasks: [{ id: 1, description: 'Sample Task', completed: false }],
+                        tasks: [],
                         towerBlocks: []
                     }]
                 }
@@ -53,26 +55,36 @@ const GameBoard = () => {
         }
     };
 
-    const handlePlayerAction = async (action) => {
+    const handlePlayerAction = async (action, playerId, taskId) => {
         try {
             const updatedGameState = { ...gameState };
-            const player = updatedGameState.players[0];
+            const player = updatedGameState.players.find(p => p.id === playerId);
 
-            switch (action) {
-                case 'addBlock':
-                    player.towerBlocks.push({ id: Date.now(), type: 'default' });
-                    break;
-                case 'removeBlock':
-                    if (player.towerBlocks.length > 0) {
-                        player.towerBlocks.pop();
-                    }
-                    break;
-                case 'completeTask':
-                    if (player.tasks.length > 0 && !player.tasks[0].completed) {
-                        player.tasks[0].completed = true;
-                        player.score += 10;
-                    }
-                    break;
+            if (action === 'addTask') {
+                const points = {
+                    personal: 1,
+                    chores: 2,
+                    work: 3
+                }[selectedCategory];
+
+                player.tasks.push({
+                    id: Date.now(),
+                    description: taskInput,
+                    category: selectedCategory,
+                    points,
+                    completed: false
+                });
+                setTaskInput('');
+            } else if (action === 'completeTask') {
+                const task = player.tasks.find(t => t.id === taskId);
+                if (task && !task.completed) {
+                    task.completed = true;
+                    player.score += task.points;
+                    player.towerBlocks.push({
+                        type: task.category,
+                        points: task.points
+                    });
+                }
             }
 
             await axios.post(API_URL, { gameState: updatedGameState });
@@ -84,22 +96,16 @@ const GameBoard = () => {
     };
 
     useEffect(() => {
-        // Initial fetch
         fetchGameState();
-        
-        // Set up interval with a longer duration to prevent race conditions
-        const interval = setInterval(fetchGameState, 5000); // Changed from 1000 to 5000ms
-        
-        // Clear interval on cleanup
+        const interval = setInterval(fetchGameState, 5000);
         return () => clearInterval(interval);
     }, []);
 
-    // Add retry mechanism for failed fetches
     useEffect(() => {
         if (error) {
             const retry = setTimeout(() => {
                 fetchGameState();
-            }, 3000); // Retry after 3 seconds
+            }, 3000);
             return () => clearTimeout(retry);
         }
     }, [error]);
@@ -125,69 +131,107 @@ const GameBoard = () => {
     }
 
     return (
-        <div className="game-board">
-            <div className="game-controls">
-                <button
-                    onClick={startGame}
-                    disabled={gameState.currentPhase !== ''}
-                >
-                    Start Game
-                </button>
-                <button
-                    onClick={() => handlePlayerAction('addBlock')}
-                    disabled={gameState.currentPhase !== 'work'}
-                >
-                    Add Block
-                </button>
-                <button
-                    onClick={() => handlePlayerAction('removeBlock')}
-                    disabled={gameState.currentPhase !== 'work' || gameState.players[0]?.towerBlocks.length === 0}
-                >
-                    Remove Block
-                </button>
-                <button
-                    onClick={() => handlePlayerAction('completeTask')}
-                    disabled={gameState.currentPhase !== 'work' || gameState.players[0]?.tasks[0]?.completed}
-                >
-                    Complete Task
-                </button>
+        <div className="game-board-container">
+            {/* Phase Indicator */}
+            <div className="phase-indicator">
+                <div className={`phase-dot ${gameState.currentPhase}`}></div>
+                <span>{gameState.currentPhase.toUpperCase()}</span>
             </div>
 
-            <div className="game-info">
-                <div className="phase">Phase: {gameState.currentPhase}</div>
-                <div className="round">Round: {gameState.currentRound}</div>
-                <div className="timer">Time: {gameState.timer}s</div>
+            {/* Timer Display */}
+            <div className="timer-display">
+                <div className="time-remaining">{Math.floor(gameState.timer / 60)}:{String(gameState.timer % 60).padStart(2, '0')}</div>
+                <div className="timer-bar-container">
+                    <div className="timer-bar" style={{ width: `${(gameState.timer / 600) * 100}%` }}></div>
+                </div>
             </div>
 
-            <div className="player-info">
-                <h3>Player Information</h3>
-                {gameState.players.map((player, index) => (
-                    <div key={index} className="player-card">
-                        <div className="player-name">{player.name}</div>
-                        <div className="player-score">Score: {player.score}</div>
-                        <div className="player-tasks">
-                            <h4>Tasks:</h4>
-                            {player.tasks.map((task, taskIndex) => (
+            {/* Player Cards Grid */}
+            <div className="player-grid">
+                {gameState.players.map((player) => (
+                    <div key={player.id} className="player-card">
+                        <div className="player-header">
+                            <h3>Player {player.id}</h3>
+                            <div className="player-score">Score: {player.score}</div>
+                        </div>
+
+                        {/* Task Tower */}
+                        <div className="tower-container">
+                            {player.towerBlocks.map((block, index) => (
                                 <div
-                                    key={taskIndex}
-                                    className={`task ${task.completed ? 'completed' : ''}`}
+                                    key={index}
+                                    className={`block ${block.type} transition-transform duration-300`}
+                                    style={{
+                                        animation: `slideIn ${index * 0.1 + 0.5}s ease-out`
+                                    }}
                                 >
-                                    {task.description}
+                                    {block.points}
                                 </div>
                             ))}
                         </div>
-                        <div className="player-tower">
-                            <h4>Tower Blocks:</h4>
-                            <div className="tower-container">
-                                {player.towerBlocks.map((block, blockIndex) => (
-                                    <div key={blockIndex} className="tower-block">
-                                        {block.type}
-                                    </div>
-                                ))}
+
+                        {/* Task Input Section */}
+                        {gameState.currentPhase === 'work' && (
+                            <div className="task-input-section">
+                                <div className="task-input-group">
+                                    <input
+                                        type="text"
+                                        value={taskInput}
+                                        onChange={(e) => setTaskInput(e.target.value)}
+                                        placeholder="Enter task description"
+                                        className="task-input"
+                                    />
+                                    <select
+                                        value={selectedCategory}
+                                        onChange={(e) => setSelectedCategory(e.target.value)}
+                                        className="task-category-select"
+                                    >
+                                        <option value="personal">Personal ( 1pt)</option>
+                                        <option value="chores">Chores ( 2pt)</option>
+                                        <option value="work">Work ( 3pt)</option>
+                                    </select>
+                                    <button
+                                        onClick={() => handlePlayerAction('addTask', player.id)}
+                                        className="action-btn add-task-btn"
+                                    >
+                                        Add Task
+                                    </button>
+                                </div>
                             </div>
+                        )}
+
+                        {/* Pending Tasks List */}
+                        <div className="pending-tasks-list">
+                            {player.tasks.map((task, index) => (
+                                <div key={index} className="task-item">
+                                    <span className={`task-description ${task.completed ? 'line-through' : ''}`}>
+                                        {task.description} ({task.category} - {task.points}pt)
+                                    </span>
+                                    <button
+                                        onClick={() => handlePlayerAction('completeTask', player.id, task.id)}
+                                        disabled={task.completed}
+                                        className={`action-btn complete-task-btn ${task.completed ? 'completed' : ''}`}
+                                    >
+                                        {task.completed ? '' : 'Complete'}
+                                    </button>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 ))}
+            </div>
+
+            {/* Multiplayer Controls */}
+            <div className="multiplayer-controls">
+                <button className="action-btn" onClick={startGame}>
+                    Start Game
+                </button>
+                <button className="action-btn" onClick={() => handlePlayerAction('pauseGame')}>
+                    Pause Game
+                </button>
+                <button className="action-btn" onClick={() => handlePlayerAction('addPlayer')}>
+                    Add Player
+                </button>
             </div>
         </div>
     );
