@@ -570,37 +570,49 @@ Task Tower is a productivity gamification platform that combines task management
 - Implement error recovery
 - Add monitoring for suspicious activity
 
-### Authentication Setup Script
-- Created setup-google-auth.js to help set up Google Sheets authentication
+### Authentication Setup Process
+- To set up Google Sheets authentication:
 
-- Features:
-  - Checks for existing valid token
-  - Generates authorization URL
-  - Handles user authorization
-  - Saves tokens securely
-  - Tests API access
-  - Provides clear feedback
+1. Prerequisites:
+- Google Cloud Project
+- Google Sheets API enabled
+- OAuth 2.0 Client ID created
+- Service account created
+- Google Sheet shared with service account
+- Environment variables configured
 
-- Usage:
-  1. Ensure all required environment variables are set
-  2. Run the script: node scripts/setup-google-auth.js
-  3. Visit the provided URL to authorize
-  4. Enter the authorization code
-  5. Script will save token and verify access
+2. Setup Steps:
+1. Create Google Cloud Project:
+   - Go to Google Cloud Console
+   - Create new project
+   - Enable Google Sheets API
+   - Create OAuth 2.0 Client ID
+   - Download client_secret.json
 
-- Error Handling:
-  - Invalid token detection
-  - Network errors
-  - Authorization failures
-  - File I/O errors
-  - API access verification
+2. Configure Environment Variables:
+   - Set up .env file with credentials
+   - Configure OAuth URLs
+   - Set up token path
+   - Configure spreadsheet ID
 
-- Security Features:
-  - Uses environment variables for credentials
-  - Secure token storage
-  - Proper error handling
-  - Clear user feedback
-  - Token expiration checking
+3. Run Setup Script:
+   - Run: node scripts/setup-google-auth.js
+   - Follow authorization URL
+   - Enter authorization code
+   - Verify API access
+
+3. Verification:
+- Check token.json exists
+- Verify token validity
+- Test API access
+- Check spreadsheet access
+
+4. Error Handling:
+- Invalid credentials
+- Network issues
+- Authorization failures
+- Token expiration
+- API access errors
 
 ### Current Focus
 - Core Game Logic
