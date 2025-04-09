@@ -1,6 +1,6 @@
 /**
  * index.js
- * Main entry point for the game
+ * Main entry point for the Task Tower game
  */
 
 // Core game modules
@@ -8,42 +8,34 @@ import { GameCore } from './core/game-core.js';
 import { Monitoring } from './core/monitoring.js';
 
 // UI components
-import { GameUI } from './ui/game-ui.js';
+import { TaskUI } from './ui/task-ui.js';
+import { PlayerUI } from './ui/player-ui.js';
 
-// Initialize core components
-const game = new GameCore();
-const monitoring = new Monitoring();
-const ui = new GameUI();
+// Multiplayer features
+import { MultiplayerManager } from './multiplayer/multiplayer-manager.js';
 
-// Start game
-async function startGame() {
+// Initialize components
+const initializeGame = () => {
     try {
-        // Initialize game
-        await game.initialize();
-        
-        // Initialize UI
-        await ui.initialize();
-        
-        // Start the game loop
-        await game.startGame();
-    } catch (error) {
-        console.error('Error starting game:', error);
-        monitoring.handleError(error);
-        ui.showError(error.message);
-    }
-}
+        // Initialize core game
+        GameCore.initializeGame();
 
-// Handle window load
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        // Initialize monitoring
-        await monitoring.initializeMetrics();
-        
-        // Start the game
-        await startGame();
+        // Initialize UI components
+        TaskUI.init();
+        PlayerUI.init();
+
+        // Initialize multiplayer features
+        MultiplayerManager.init();
+
+        // Start game
+        GameCore.startGame();
+
+        console.log('Task Tower initialized successfully');
     } catch (error) {
-        console.error('Error on window load:', error);
-        monitoring.handleError(error);
-        ui.showError('Failed to initialize game. Please refresh the page.');
+        console.error('Error initializing game:', error);
+        alert('Error initializing game: ' + error.message);
     }
-});
+};
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', initializeGame);

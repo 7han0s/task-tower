@@ -247,6 +247,111 @@ class Task {
         }
         return null;
     }
+
+    /**
+     * Add a dependency to this task
+     * @param {number} dependencyId - ID of the task this task depends on
+     * @returns {boolean} - True if dependency was added successfully
+     */
+    addDependency(dependencyId) {
+        if (this.dependencies.includes(dependencyId)) {
+            return false;
+        }
+        
+        // Prevent circular dependencies
+        const visited = new Set();
+        if (this.checkCircularDependency(dependencyId, visited)) {
+            throw new Error('Circular dependency detected');
+        }
+        
+        this.dependencies.push(dependencyId);
+        return true;
+    }
+
+    /**
+     * Check for circular dependencies
+     * @param {number} taskId - Task ID to check
+     * @param {Set} visited - Set of visited task IDs
+     * @returns {boolean} - True if circular dependency is found
+     */
+    checkCircularDependency(taskId, visited) {
+        if (visited.has(taskId)) {
+            return true;
+        }
+        
+        visited.add(taskId);
+        
+        const task = TaskManager.getTaskById(taskId);
+        if (!task) {
+            return false;
+        }
+        
+        for (const dep of task.dependencies) {
+            if (this.checkCircularDependency(dep, visited)) {
+                return true;
+            }
+        }
+        
+        visited.delete(taskId);
+        return false;
+    }
+
+    /**
+     * Remove a dependency from this task
+     * @param {number} dependencyId - ID of the task to remove as dependency
+     * @returns {boolean} - True if dependency was removed successfully
+     */
+    removeDependency(dependencyId) {
+        const index = this.dependencies.indexOf(dependencyId);
+        if (index === -1) {
+            return false;
+        }
+        
+        this.dependencies.splice(index, 1);
+        return true;
+    }
+
+    /**
+     * Get all dependent tasks (tasks that depend on this task)
+     * @returns {Array<Task>} - Array of tasks that depend on this task
+     */
+    getDependentTasks() {
+        const dependentTasks = [];
+        for (const player of GameCore.players) {
+            for (const task of player.pendingTasks) {
+                if (task.dependencies.includes(this.id)) {
+                    dependentTasks.push(task);
+                }
+            }
+        }
+        return dependentTasks;
+    }
+
+    /**
+     * Get all prerequisites (tasks that this task depends on)
+     * @returns {Array<Task>} - Array of prerequisite tasks
+     */
+    getPrerequisites() {
+        const prerequisites = [];
+        for (const depId of this.dependencies) {
+            const task = TaskManager.getTaskById(depId);
+            if (task) {
+                prerequisites.push(task);
+            }
+        }
+        return prerequisites;
+    }
+
+    /**
+     * Check if all prerequisites are completed
+     * @returns {boolean} - True if all prerequisites are completed
+     */
+    arePrerequisitesCompleted() {
+        return this.dependencies.every(depId => {
+            const task = TaskManager.getTaskById(depId);
+            return task && task.completed;
+        });
+    }
 }
 
 // Main Task Manager

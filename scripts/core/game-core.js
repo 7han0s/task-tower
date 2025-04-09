@@ -679,100 +679,144 @@ export class GameCore {
     }
 
     static startPhase(phaseName) {
-        currentPhase = phaseName;
-        clearInterval(timerInterval); // Clear any existing timer
-        console.log(`Starting Phase: ${phaseName}`);
-
-        // Set phase duration and update UI
-        if (phaseName === 'work') {
-            phaseTimeRemaining = defaultConfig.roundTime * 60;
-        } else if (phaseName === 'action') {
-            phaseTimeRemaining = defaultConfig.breakTime * 60;
+        if (gamePaused) {
+            console.log('Cannot start phase - game is paused');
+            return;
         }
-        GameCore.startTimer(phaseTimeRemaining);
-    }
 
-    static startTimer(duration) {
-        let remainingTime = duration;
+        if (currentPhase === phaseName) {
+            console.log(`Phase ${phaseName} is already active`);
+            return;
+        }
 
-        // Clear any existing timer
+        // Clean up previous phase
         if (timerInterval) {
             clearInterval(timerInterval);
         }
 
+        currentPhase = phaseName;
+        phaseTimeRemaining = this.getPhaseDuration(phaseName);
+
+        // Start timer for this phase
+        this.startTimer(phaseTimeRemaining);
+
+        // Notify players of phase change
+        this.notifyPhaseChange(phaseName);
+    }
+
+    static getPhaseDuration(phaseName) {
+        switch (phaseName) {
+            case 'work':
+                return this.workPhaseDuration * 60;
+            case 'action':
+                return this.actionPhaseDuration * 60;
+            case 'break':
+                return this.breakTime * 60;
+            default:
+                return 0;
+        }
+    }
+
+    static startTimer(duration) {
+        phaseTimeRemaining = duration;
         timerInterval = setInterval(() => {
             if (gamePaused) return;
 
-            remainingTime--;
-
-            // Update timer display
-            const minutes = Math.floor(remainingTime / 60);
-            const seconds = remainingTime % 60;
-            const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-
-            // Update game status with timer
-            if (currentPhase === 'work') {
-                console.log(`Round ${currentRound} - Work Phase: ${timeString}`);
-            } else if (currentPhase === 'action') {
-                console.log(`Round ${currentRound} - Break: ${timeString}`);
-            }
-
-            if (remainingTime <= 0) {
-                clearInterval(timerInterval);
-
-                if (currentPhase === 'work') {
-                    // End work phase and start break
-                    GameCore.endWorkPhase();
-                } else if (currentPhase === 'action') {
-                    // End break phase and start next round
-                    GameCore.endBreakPhase();
-                }
+            if (phaseTimeRemaining <= 0) {
+                this.handlePhaseEnd();
+            } else {
+                phaseTimeRemaining--;
+                this.notifyTimeUpdate();
             }
         }, 1000);
     }
 
+    static handlePhaseEnd() {
+        clearInterval(timerInterval);
+        timerInterval = null;
+
+        switch (currentPhase) {
+            case 'work':
+                this.endWorkPhase();
+                break;
+            case 'action':
+                this.endActionPhase();
+                break;
+            case 'break':
+                this.endBreakPhase();
+                break;
+        }
+    }
+
     static endWorkPhase() {
-        currentPhase = 'action';
+        // Calculate scores for completed tasks
+        players.forEach(player => {
+            player.tasks.forEach(task => {
+                if (task.completed && !task.scored) {
+                    const score = this.calculateTaskScore(task, player.id);
+                    player.score += score;
+                    task.scored = true;
+                }
+            });
+        });
 
-        // Start break phase timer
-        GameCore.startTimer(defaultConfig.breakTime * 60); // Convert minutes to seconds
+        // Start action phase
+        this.startPhase('action');
+    }
 
-        // Notify UI of phase change
-        console.log("Phase changed to action");
+    static endActionPhase() {
+        // Reset action phase state
+        players.forEach(player => {
+            player.actionsTaken = false;
+        });
+
+        // Start break phase
+        this.startPhase('break');
     }
 
     static endBreakPhase() {
-        currentRound++;
+        // Reset break phase state
+        players.forEach(player => {
+            player.breakTaken = false;
+        });
 
-        if (currentRound <= totalRounds) {
-            // Start next round
-            GameCore.startRound();
+        // Start next round or end game
+        if (currentRound < totalRounds) {
+            currentRound++;
+            this.startPhase('work');
         } else {
-            // End game
-            GameCore.endGame();
+            this.endGame();
         }
     }
 
-    static pauseGame() {
-        gamePaused = true;
-        console.log("Game Paused");
-
-        // Clear timer during pause
-        if (timerInterval) {
-            clearInterval(timerInterval);
-        }
+    static calculateTaskScore(task, playerId) {
+        const scoringManager = new ScoringManager();
+        const scoreData = scoringManager.calculateFinalScore(task, playerId);
+        return scoreData.finalScore;
     }
 
-    static resumeGame() {
-        gamePaused = false;
+    static notifyPhaseChange(phaseName) {
+        // Update UI and notify players
+        this.updateUI();
+        this.notifyPlayers(`Phase changed to ${phaseName}`);
+    }
 
-        // Restart timer if in work or rest phase
-        if (currentPhase === 'work' || currentPhase === 'action') {
-            const remainingTime = phaseTimeRemaining;
-            GameCore.startTimer(remainingTime);
-        }
+    static notifyTimeUpdate() {
+        // Update UI with remaining time
+        this.updateUI();
+    }
 
-        console.log(`Game resumed in phase ${currentPhase}`);
+    static updateUI() {
+        // Update phase indicator
+        document.getElementById('phase-indicator').textContent = currentPhase;
+        
+        // Update time remaining
+        document.getElementById('time-remaining').textContent = 
+            this.formatTime(phaseTimeRemaining);
+        
+        // Update round counter
+        document.getElementById('round-counter').textContent = 
+            `${currentRound}/${totalRounds}`;
     }
 
     static formatTime(seconds) {

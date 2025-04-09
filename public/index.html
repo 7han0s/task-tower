@@ -45,10 +45,103 @@
                 
                 <!-- Main game content -->
                 <div id="game-content" class="hidden">
-                    <!-- Add your game components here -->
+                    <!-- Task List Container -->
+                    <div id="task-list-container" class="flex flex-col space-y-4">
+                        <!-- Task Filters -->
+                        <div class="flex flex-wrap gap-2 mb-4">
+                            <button id="filter-all" class="filter-btn active">All</button>
+                            <button id="filter-personal" class="filter-btn">Personal</button>
+                            <button id="filter-chores" class="filter-btn">Chores</button>
+                            <button id="filter-work" class="filter-btn">Work</button>
+                            <button id="filter-big" class="filter-btn">Big Tasks</button>
+                            <button id="filter-overdue" class="filter-btn">Overdue</button>
+                        </div>
+
+                        <!-- Task List -->
+                        <div id="task-list" class="space-y-2">
+                            <!-- Task items will be dynamically added here -->
+                        </div>
+                    </div>
+
+                    <!-- Task Template -->
+                    <template id="task-template">
+                        <div class="task-item bg-white rounded-lg shadow-md p-4 mb-2 relative">
+                            <!-- Progress Bar -->
+                            <div class="progress-container mb-2">
+                                <div class="progress-bar bg-blue-500 h-2 rounded-full" style="width: 0%"></div>
+                            </div>
+
+                            <!-- Task Details -->
+                            <div class="task-details flex flex-col space-y-2">
+                                <div class="task-header flex justify-between items-start">
+                                    <div class="task-info">
+                                        <h3 class="task-title text-lg font-semibold"></h3>
+                                        <div class="task-meta flex flex-wrap gap-2 mt-1">
+                                            <span class="category-tag"></span>
+                                            <span class="priority-tag"></span>
+                                            <span class="complexity-tag"></span>
+                                        </div>
+                                    </div>
+                                    <div class="task-controls flex gap-2">
+                                        <button class="complete-btn bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">Complete</button>
+                                        <button class="subtask-btn bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">Subtasks</button>
+                                        <button class="share-task-btn bg-purple-500 text-white px-3 py-1 rounded hover:bg-purple-600">Share</button>
+                                        <button class="request-help-btn bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600">Help</button>
+                                    </div>
+                                </div>
+
+                                <!-- Help Requests -->
+                                <div class="help-requests-container space-y-2">
+                                    <!-- Help requests will be dynamically added here -->
+                                </div>
+
+                                <!-- Subtasks -->
+                                <div class="subtasks-container hidden">
+                                    <div class="subtasks-list space-y-2">
+                                        <!-- Subtasks will be dynamically added here -->
+                                    </div>
+                                    <button class="add-subtask-btn text-blue-500 hover:text-blue-600">Add Subtask</button>
+                                </div>
+
+                                <!-- Task Notes -->
+                                <div class="task-notes mt-2">
+                                    <textarea class="w-full p-2 border rounded" placeholder="Add notes..." rows="2"></textarea>
+                                </div>
+                            </div>
+
+                            <!-- Task Status -->
+                            <div class="task-status absolute bottom-0 left-0 right-0 bg-gray-100 p-2 text-sm">
+                                <span class="status-text"></span>
+                                <span class="points-text ml-4"></span>
+                            </div>
+                        </div>
+                    </template>
                 </div>
             </div>
         </div>
+
+        <!-- Player List -->
+        <div id="player-list" class="hidden">
+            <h2 class="text-xl font-semibold mb-4">Players</h2>
+            <div class="player-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Player cards will be dynamically added here -->
+            </div>
+        </div>
+
+        <!-- Player Template -->
+        <template id="player-template">
+            <div class="player-card bg-white rounded-lg shadow-md p-4">
+                <div class="player-header flex justify-between items-center mb-4">
+                    <h3 class="player-name text-lg font-semibold"></h3>
+                    <span class="player-score text-xl font-bold">0</span>
+                </div>
+                <div class="player-tasks">
+                    <div class="task-list space-y-2">
+                        <!-- Tasks will be dynamically added here -->
+                    </div>
+                </div>
+            </div>
+        </template>
     </div>
     
     <!-- Main bundle -->

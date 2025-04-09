@@ -9,7 +9,8 @@ const ScoringConstants = {
     CATEGORY_MULTIPLIERS: {
         personal: 1.0,
         chores: 1.5,
-        work: 2.0
+        work: 2.0,
+        big: 2.5
     },
 
     // Complexity bonuses
@@ -26,6 +27,14 @@ const ScoringConstants = {
         [TaskPriority.MEDIUM]: 0.1,
         [TaskPriority.HIGH]: 0.2,
         [TaskPriority.CRITICAL]: 0.3
+    },
+
+    // Time-based bonuses
+    TIME_PRESSURE_BONUS: {
+        CRITICAL: 0.5,
+        HIGH: 0.3,
+        MEDIUM: 0.1,
+        LOW: 0
     },
 
     // Efficiency bonus (up to 50%)
@@ -45,6 +54,9 @@ const ScoringConstants = {
 
     // Streak bonus (for consecutive tasks)
     STREAK_BONUS: 0.1,
+
+    // Early completion bonus (up to 20%)
+    EARLY_COMPLETION_MULTIPLIER: 0.2,
 
     // Maximum bonus limits
     MAX_BONUS: 2.0 // No more than 200% bonus
@@ -175,6 +187,50 @@ class ScoringManager {
     }
 
     /**
+     * Calculate time pressure bonus based on task priority and remaining time
+     * @param {Task} task - The task to calculate bonus for
+     * @returns {number} - The time pressure bonus multiplier
+     */
+    calculateTimePressureBonus(task) {
+        if (!task.deadline) return 0;
+        
+        const now = new Date();
+        const timeUntilDeadline = Math.max(0, task.deadline - now);
+        const totalAvailableTime = Math.max(1, task.deadline - task.created);
+        
+        const timePressure = 1 - (timeUntilDeadline / totalAvailableTime);
+        const priorityLevel = task.priority;
+        
+        return timePressure * ScoringConstants.TIME_PRESSURE_BONUS[priorityLevel];
+    }
+
+    /**
+     * Calculate early completion bonus
+     * @param {Task} task - The task to calculate bonus for
+     * @returns {number} - The early completion bonus multiplier
+     */
+    calculateEarlyCompletionBonus(task) {
+        if (!task.deadline) return 0;
+        
+        const now = new Date();
+        const timeUntilDeadline = Math.max(0, task.deadline - now);
+        const totalAvailableTime = Math.max(1, task.deadline - task.created);
+        
+        const completionTime = task.completed;
+        const timeTaken = completionTime - task.created;
+        const timeSaved = totalAvailableTime - timeTaken;
+        
+        if (timeSaved <= 0) return 0;
+        
+        const earlyCompletionBonus = Math.min(
+            ScoringConstants.EARLY_COMPLETION_MULTIPLIER,
+            (timeSaved / totalAvailableTime) * ScoringConstants.EARLY_COMPLETION_MULTIPLIER
+        );
+        
+        return earlyCompletionBonus;
+    }
+
+    /**
      * Update streak for a player
      * @param {number} playerId - The player's ID
      * @param {boolean} success - Whether the task was completed successfully
@@ -221,13 +277,15 @@ class ScoringManager {
         const bigTaskBonus = this.calculateBigTaskBonus(task);
         const teamworkBonus = this.calculateTeamworkBonus(playerId);
         const streakBonus = this.calculateStreakBonus(playerId);
+        const timePressureBonus = this.calculateTimePressureBonus(task);
+        const earlyCompletionBonus = this.calculateEarlyCompletionBonus(task);
         
         // Apply bonuses while respecting max bonus limit
         const totalBonus = Math.min(
             ScoringConstants.MAX_BONUS,
             complexityBonus + priorityBonus + efficiencyBonus + 
             deadlineBonus + subtaskBonus + bigTaskBonus + 
-            teamworkBonus + streakBonus
+            teamworkBonus + streakBonus + timePressureBonus + earlyCompletionBonus
         );
         
         finalScore = Math.ceil(finalScore * (1 + totalBonus));
@@ -244,6 +302,8 @@ class ScoringManager {
                 bigTask: bigTaskBonus,
                 teamwork: teamworkBonus,
                 streak: streakBonus,
+                timePressure: timePressureBonus,
+                earlyCompletion: earlyCompletionBonus,
                 totalBonus
             }
         };
