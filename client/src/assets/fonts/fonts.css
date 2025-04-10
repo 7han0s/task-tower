@@ -1,0 +1,32 @@
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Arial&display=swap');
+
+/* Define font families */
+:root {
+  --font-family-pixel: 'Press Start 2P', cursive;
+  --font-family-clean: 'Arial', sans-serif;
+}
+
+/* Press Start 2P Font */
+@font-face {
+  font-family: 'Press Start 2P';
+  src: url('./PressStart2P-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* Roboto Font */
+@font-face {
+  font-family: 'Roboto';
+  src: url('./Roboto-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Roboto';
+  src: url('./Roboto-Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+}

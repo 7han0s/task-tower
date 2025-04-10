@@ -1,3 +1,5 @@
+const { v4: uuidv4 } = require('uuid');
+
 class GameState {
     static ROUND_STATUS = {
         WORK: 'WORK',
@@ -7,7 +9,8 @@ class GameState {
     };
 
     constructor(data = {}) {
-        this.id = data.id || Date.now();
+        this.id = data.id || uuidv4();
+        this.lobbyCode = data.lobbyCode || Math.floor(10000 + Math.random() * 90000).toString();
         this.round = data.round || 0;
         this.phase = data.phase || GameState.ROUND_STATUS.WORK;
         this.startTime = data.startTime || new Date();
@@ -116,6 +119,7 @@ class GameState {
     toJSON() {
         return {
             id: this.id,
+            lobbyCode: this.lobbyCode,
             round: this.round,
             phase: this.phase,
             startTime: this.startTime,

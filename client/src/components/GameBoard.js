@@ -1,119 +1,196 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useContext } from 'react';
+import { ThemeContext } from '../contexts/ThemeContext';
+import ThemeSwitcher from './ThemeSwitcher';
+import gameSheets from '../services/game-sheets';
+import { useGame } from '../hooks/useGame';
 
-const API_URL = 'http://localhost:3001/api/game-state';
-
-const GameBoard = () => {
-    const [gameState, setGameState] = useState({
-        lobbyCode: '',
-        currentPhase: 'work',
-        currentRound: 1,
-        timer: 600,
-        playerCount: 1,
-        players: []
-    });
+const GameBoard = ({ mode, lobbyCode, onSettingsOpen }) => {
+    const { theme, variant, toggleTheme, setTheme, setVariant } = useContext(ThemeContext);
+    const [gameState, setGameState] = useState(null);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
     const [taskInput, setTaskInput] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState('personal');
+    const [selectedCategory, setSelectedCategory] = useState('Personal');
 
-    const fetchGameState = async () => {
-        try {
-            const response = await axios.get(API_URL);
-            setGameState(response.data);
-            setError('');
-        } catch (err) {
-            console.error('Error fetching game state:', err);
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
+    // Initialize game state
+    useEffect(() => {
+        const fetchGameState = async () => {
+            try {
+                const state = await gameSheets.fetchGameState(lobbyCode);
+                setGameState(state);
+                setError('');
+            } catch (err) {
+                console.error('Error fetching game state:', err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchGameState();
+    }, [lobbyCode]);
+
+    // Handle menu drag
+    const handleMenuDrag = (e) => {
+        const rect = e.target.getBoundingClientRect();
+        const x = e.clientX - rect.width / 2;
+        const y = e.clientY - rect.height / 2;
+        setMenuPosition({ x, y });
     };
 
-    const startGame = async () => {
-        try {
-            await axios.post(API_URL, {
-                gameState: {
-                    lobbyCode: 'GAME123',
-                    currentPhase: 'work',
-                    currentRound: 1,
-                    timer: 600,
-                    playerCount: 1,
-                    players: [{
-                        id: 1,
-                        name: 'Player 1',
-                        score: 0,
-                        tasks: [],
-                        towerBlocks: []
-                    }]
-                }
-            });
-            fetchGameState();
-        } catch (err) {
-            console.error('Error starting game:', err);
-            setError(err.message);
-        }
+    // Handle menu click
+    const handleMenuClick = (e) => {
+        e.stopPropagation();
+        setIsMenuOpen(true);
     };
 
-    const handlePlayerAction = async (action, playerId, taskId) => {
+    // Handle menu close
+    const handleMenuClose = () => {
+        setIsMenuOpen(false);
+    };
+
+    // Handle theme switch
+    const handleThemeSwitch = (newTheme) => {
+        setTheme(newTheme);
+        localStorage.setItem('theme', newTheme);
+    };
+
+    // Handle variant switch
+    const handleVariantSwitch = (newVariant) => {
+        setVariant(newVariant);
+        localStorage.setItem('variant', newVariant);
+    };
+
+    const handleTaskAdd = async (playerId, task) => {
         try {
             const updatedGameState = { ...gameState };
             const player = updatedGameState.players.find(p => p.id === playerId);
-
-            if (action === 'addTask') {
+            if (player) {
                 const points = {
-                    personal: 1,
-                    chores: 2,
-                    work: 3
+                    Personal: 1,
+                    Chores: 2,
+                    Work: 3
                 }[selectedCategory];
 
-                player.tasks.push({
+                const newTask = {
                     id: Date.now(),
-                    description: taskInput,
+                    text: taskInput,
                     category: selectedCategory,
                     points,
-                    completed: false
-                });
+                    completed: false,
+                    subtasks: []
+                };
+
+                player.tasks.push(newTask);
                 setTaskInput('');
-            } else if (action === 'completeTask') {
+                
+                // Save to server
+                if (mode === 'multiplayer') {
+                    await gameSheets.addTask(lobbyCode, playerId, newTask);
+                }
+                setGameState(updatedGameState);
+            }
+        } catch (error) {
+            console.error('Error adding task:', error);
+            setError('Failed to add task');
+        }
+    };
+
+    const handleTaskComplete = async (playerId, taskId) => {
+        try {
+            const updatedGameState = { ...gameState };
+            const player = updatedGameState.players.find(p => p.id === playerId);
+            if (player) {
                 const task = player.tasks.find(t => t.id === taskId);
                 if (task && !task.completed) {
                     task.completed = true;
                     player.score += task.points;
-                    player.towerBlocks.push({
-                        type: task.category,
-                        points: task.points
-                    });
+                    
+                    // Save to server
+                    if (mode === 'multiplayer') {
+                        await gameSheets.completeTask(lobbyCode, playerId, taskId);
+                    }
+                    setGameState(updatedGameState);
                 }
             }
-
-            await axios.post(API_URL, { gameState: updatedGameState });
-            fetchGameState();
-        } catch (err) {
-            console.error('Error handling player action:', err);
-            setError(err.message);
+        } catch (error) {
+            console.error('Error completing task:', error);
+            setError('Failed to complete task');
         }
     };
 
-    useEffect(() => {
-        fetchGameState();
-        const interval = setInterval(fetchGameState, 5000);
-        return () => clearInterval(interval);
-    }, []);
-
-    useEffect(() => {
-        if (error) {
-            const retry = setTimeout(() => {
-                fetchGameState();
-            }, 3000);
-            return () => clearTimeout(retry);
+    const handleSubtaskComplete = async (playerId, taskId, subtaskId) => {
+        try {
+            const updatedGameState = { ...gameState };
+            const player = updatedGameState.players.find(p => p.id === playerId);
+            if (player) {
+                const task = player.tasks.find(t => t.id === taskId);
+                if (task) {
+                    const subtask = task.subtasks.find(s => s.id === subtaskId);
+                    if (subtask && !subtask.completed) {
+                        subtask.completed = true;
+                        // Check if all subtasks are complete
+                        const allSubtasksComplete = task.subtasks.every(s => s.completed);
+                        if (allSubtasksComplete) {
+                            task.completed = true;
+                            player.score += task.points;
+                        }
+                        
+                        // Save to server
+                        if (mode === 'multiplayer') {
+                            await gameSheets.completeSubtask(lobbyCode, playerId, taskId, subtaskId);
+                        }
+                        setGameState(updatedGameState);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error completing subtask:', error);
+            setError('Failed to complete subtask');
         }
-    }, [error]);
+    };
+
+    const handleAddSubtask = async (playerId, taskId, subtask) => {
+        try {
+            const updatedGameState = { ...gameState };
+            const player = updatedGameState.players.find(p => p.id === playerId);
+            if (player) {
+                const task = player.tasks.find(t => t.id === taskId);
+                if (task) {
+                    const newSubtask = {
+                        id: Date.now(),
+                        text: subtask,
+                        completed: false
+                    };
+                    task.subtasks.push(newSubtask);
+                    
+                    // Save to server
+                    if (mode === 'multiplayer') {
+                        await gameSheets.addSubtask(lobbyCode, playerId, taskId, newSubtask);
+                    }
+                    setGameState(updatedGameState);
+                }
+            }
+        } catch (error) {
+            console.error('Error adding subtask:', error);
+            setError('Failed to add subtask');
+        }
+    };
+
+    const getCategoryColor = (category) => {
+        const colors = {
+            Personal: '#dc3545',
+            Chores: '#0d6efd',
+            Work: '#4CAF50'
+        };
+        return colors[category] || '#6c757d';
+    };
 
     if (loading) {
         return (
             <div className="loading-container">
-                <div className="loading">Loading game state...</div>
                 <div className="loading-spinner"></div>
             </div>
         );
@@ -122,118 +199,154 @@ const GameBoard = () => {
     if (error) {
         return (
             <div className="error-container">
-                <div className="error">Error: {error}</div>
-                <button onClick={fetchGameState} className="retry-button">
-                    Retry
-                </button>
+                <p>{error}</p>
+                <button onClick={() => window.location.reload()}>Retry</button>
             </div>
         );
     }
 
     return (
-        <div className="game-board-container">
-            {/* Phase Indicator */}
-            <div className="phase-indicator">
-                <div className={`phase-dot ${gameState.currentPhase}`}></div>
-                <span>{gameState.currentPhase.toUpperCase()}</span>
-            </div>
+        <>
+            <div className={`game-board ${theme} ${variant}`}>
+                <div className="game-container">
+                    {/* Theme Switcher */}
+                    <ThemeSwitcher 
+                        theme={theme} 
+                        variant={variant} 
+                        onThemeSwitch={handleThemeSwitch} 
+                        onVariantSwitch={handleVariantSwitch}
+                    />
 
-            {/* Timer Display */}
-            <div className="timer-display">
-                <div className="time-remaining">{Math.floor(gameState.timer / 60)}:{String(gameState.timer % 60).padStart(2, '0')}</div>
-                <div className="timer-bar-container">
-                    <div className="timer-bar" style={{ width: `${(gameState.timer / 600) * 100}%` }}></div>
-                </div>
-            </div>
+                    {/* Menu Button */}
+                    <button
+                        onClick={handleMenuClick}
+                        className="menu-btn"
+                    >
+                        ≡
+                    </button>
 
-            {/* Player Cards Grid */}
-            <div className="player-grid">
-                {gameState.players.map((player) => (
-                    <div key={player.id} className="player-card">
-                        <div className="player-header">
-                            <h3>Player {player.id}</h3>
-                            <div className="player-score">Score: {player.score}</div>
+                    {/* Menu */}
+                    {isMenuOpen && (
+                        <div
+                            className="menu"
+                            style={{ left: `${menuPosition.x}px`, top: `${menuPosition.y}px` }}
+                            onMouseDown={handleMenuDrag}
+                        >
+                            <div className="menu-content">
+                                <button onClick={handleMenuClose} className="close-btn">×</button>
+                                <div className="menu-section">
+                                    <h3>Settings</h3>
+                                    <button onClick={onSettingsOpen}>Open Settings</button>
+                                </div>
+                                <div className="menu-section">
+                                    <h3>Game Mode</h3>
+                                    <p>{mode === 'multiplayer' ? 'Multiplayer' : 'Solo'}</p>
+                                </div>
+                                <div className="menu-section">
+                                    <h3>Theme</h3>
+                                    <p>{theme} {variant}</p>
+                                </div>
+                            </div>
                         </div>
+                    )}
 
-                        {/* Task Tower */}
-                        <div className="tower-container">
-                            {player.towerBlocks.map((block, index) => (
-                                <div
-                                    key={index}
-                                    className={`block ${block.type} transition-transform duration-300`}
-                                    style={{
-                                        animation: `slideIn ${index * 0.1 + 0.5}s ease-out`
-                                    }}
-                                >
-                                    {block.points}
+                    {/* Game Content */}
+                    <div className="game-content">
+                        {/* Task Categories */}
+                        <div className="task-categories">
+                            {['Personal', 'Chores', 'Work'].map(category => (
+                                <div key={category} className="category-section">
+                                    <h2>{category}</h2>
+                                    <div className="task-list">
+                                        {gameState?.players?.[0]?.tasks?.filter(t => t.category === category).map(task => (
+                                            <div key={task.id} className="task-item">
+                                                <div className="task-details">
+                                                    <p className="task-text">{task.text}</p>
+                                                    <div className="task-info">
+                                                        <span className="task-category">{task.category}</span>
+                                                        <span className="task-points">{task.points}pts</span>
+                                                    </div>
+                                                </div>
+                                                <div className="subtasks">
+                                                    <h3>Subtasks</h3>
+                                                    {task.subtasks.map(subtask => (
+                                                        <div key={subtask.id} className="subtask-item">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={subtask.completed}
+                                                                onChange={() => handleSubtaskComplete(1, task.id, subtask.id)}
+                                                            />
+                                                            <span>{subtask.text}</span>
+                                                        </div>
+                                                    ))}
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Add subtask..."
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter' && e.target.value.trim()) {
+                                                                handleAddSubtask(1, task.id, e.target.value);
+                                                                e.target.value = '';
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {/* Add Task Form for this category */}
+                                        <div className="add-task-form">
+                                            <input
+                                                type="text"
+                                                value={taskInput}
+                                                onChange={(e) => setTaskInput(e.target.value)}
+                                                placeholder={`Add ${category} task...`}
+                                                className="task-input"
+                                            />
+                                            <button
+                                                onClick={() => handleTaskAdd(1, taskInput)}
+                                                className="add-btn"
+                                                disabled={!taskInput.trim()}
+                                            >
+                                                Add
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             ))}
                         </div>
 
-                        {/* Task Input Section */}
-                        {gameState.currentPhase === 'work' && (
-                            <div className="task-input-section">
-                                <div className="task-input-group">
-                                    <input
-                                        type="text"
-                                        value={taskInput}
-                                        onChange={(e) => setTaskInput(e.target.value)}
-                                        placeholder="Enter task description"
-                                        className="task-input"
-                                    />
-                                    <select
-                                        value={selectedCategory}
-                                        onChange={(e) => setSelectedCategory(e.target.value)}
-                                        className="task-category-select"
-                                    >
-                                        <option value="personal">Personal ( 1pt)</option>
-                                        <option value="chores">Chores ( 2pt)</option>
-                                        <option value="work">Work ( 3pt)</option>
-                                    </select>
-                                    <button
-                                        onClick={() => handlePlayerAction('addTask', player.id)}
-                                        className="action-btn add-task-btn"
-                                    >
-                                        Add Task
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+                        {/* Player Cards */}
+                        <div className="player-cards-container">
+                            {gameState.players.map((player) => (
+                                <div key={player.id} className="player-card">
+                                    <div className="player-header">
+                                        <h3>Player {player.id}</h3>
+                                        <div className="score-display">
+                                            <span className="score-value">{player.score}</span>
+                                            <span className="score-label">Score</span>
+                                        </div>
+                                    </div>
 
-                        {/* Pending Tasks List */}
-                        <div className="pending-tasks-list">
-                            {player.tasks.map((task, index) => (
-                                <div key={index} className="task-item">
-                                    <span className={`task-description ${task.completed ? 'line-through' : ''}`}>
-                                        {task.description} ({task.category} - {task.points}pt)
-                                    </span>
-                                    <button
-                                        onClick={() => handlePlayerAction('completeTask', player.id, task.id)}
-                                        disabled={task.completed}
-                                        className={`action-btn complete-task-btn ${task.completed ? 'completed' : ''}`}
-                                    >
-                                        {task.completed ? '' : 'Complete'}
-                                    </button>
+                                    {/* Tower Visualization */}
+                                    <div className="tower-container">
+                                        <div className="tower-base"></div>
+                                        <div className="tower-blocks">
+                                            {player.tasks.filter(t => t.completed).map((task, index) => (
+                                                <div key={index} className="tower-block" style={{
+                                                    backgroundColor: getCategoryColor(task.category)
+                                                }}>
+                                                    {task.points}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
                             ))}
                         </div>
                     </div>
-                ))}
+                </div>
             </div>
-
-            {/* Multiplayer Controls */}
-            <div className="multiplayer-controls">
-                <button className="action-btn" onClick={startGame}>
-                    Start Game
-                </button>
-                <button className="action-btn" onClick={() => handlePlayerAction('pauseGame')}>
-                    Pause Game
-                </button>
-                <button className="action-btn" onClick={() => handlePlayerAction('addPlayer')}>
-                    Add Player
-                </button>
-            </div>
-        </div>
+        </>
     );
 };
 

@@ -18,27 +18,25 @@ const ThemeSwitcher = () => {
 
     return (
         <div className="theme-switcher">
-            <div className="theme-toggle">
-                <button 
-                    onClick={toggleDarkMode}
-                    className="btn-secondary"
-                >
-                    {isDarkMode ? '☀️' : '🌙'}
-                </button>
-            </div>
-            <div className="theme-selector">
-                <select 
-                    value={theme}
-                    onChange={handleThemeChange}
-                    className="theme-select"
-                >
-                    {themes.map((t) => (
-                        <option key={t.value} value={t.value}>
-                            {t.name}
-                        </option>
-                    ))}
-                </select>
-            </div>
+            <button 
+                onClick={toggleDarkMode}
+                className="theme-btn"
+                title="Toggle Dark/Light Mode"
+            >
+                {isDarkMode ? '☀️' : '🌙'}
+            </button>
+            <select 
+                value={theme}
+                onChange={handleThemeChange}
+                className="theme-select"
+                title="Select Theme"
+            >
+                {themes.map((t) => (
+                    <option key={t.value} value={t.value}>
+                        {t.name}
+                    </option>
+                ))}
+            </select>
         </div>
     );
 };

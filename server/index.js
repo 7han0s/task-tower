@@ -2,27 +2,17 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { google } = require('googleapis');
+const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { googleService } = require('./src/google-service');
 
 const app = express();
 
-// Initialize Google Service
-async function initializeServer() {
-    try {
-        await googleService.init();
-        console.log('Google Service initialized successfully');
-    } catch (error) {
-        console.error('Failed to initialize Google Service:', error);
-        process.exit(1);
-    }
-}
-
-// Start server initialization
-initializeServer();
+// Store lobbies in memory (in production, use a database)
+const lobbies = new Map();
 
 // Enable CORS for all routes
 app.use(cors({
-    origin: 'http://localhost:8081',
+    origin: 'http://localhost:8082',
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -31,9 +21,402 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
-const gameStateRouter = require('./src/routes/game-state');
-app.use('/api/game-state', gameStateRouter);
+// Initialize Google Service
+googleService.init();
+
+// Google Sheets configuration
+const doc = new GoogleSpreadsheet(process.env.GOOGLE_SPREADSHEET_ID);
+
+// Initialize Google Sheets
+async function initializeSheets() {
+  try {
+    await doc.useServiceAccountAuth({
+      client_email: JSON.parse(process.env.GOOGLE_CREDENTIALS).client_email,
+      private_key: JSON.parse(process.env.GOOGLE_CREDENTIALS).private_key.replace(/\\n/g, '\n'),
+    });
+    await doc.loadInfo();
+  } catch (error) {
+    console.error('Failed to initialize Google Sheets:', error);
+    throw error;
+  }
+}
+
+// Initialize game state for a lobby
+function initializeGameState() {
+  return {
+    players: [
+      { 
+        id: 1, 
+        name: 'Player 1', 
+        score: 0,
+        tasks: []
+      }
+    ],
+    currentPhase: 'WORK',
+    timeRemaining: 1500,
+    settings: {
+      roundDuration: 25,
+      categories: ['Personal', 'Chores', 'Work']
+    }
+  };
+}
+
+// Save game state to Google Sheets
+async function saveGameStateToSheet(lobbyCode, gameState) {
+  try {
+    const sheet = doc.sheetsByIndex[0];
+    await sheet.loadCells('A1:Z100');
+    
+    // Save game state data
+    const data = {
+      lobbyCode,
+      gameState: JSON.stringify(gameState)
+    };
+    
+    await sheet.setHeaderRow(['Lobby Code', 'Game State']);
+    await sheet.addRow(data);
+  } catch (error) {
+    console.error('Error saving game state to sheet:', error);
+    throw error;
+  }
+}
+
+// Load game state from Google Sheets
+async function loadGameStateFromSheet(lobbyCode) {
+  try {
+    const sheet = doc.sheetsByIndex[0];
+    await sheet.loadCells('A1:Z100');
+    
+    const rows = await sheet.getRows();
+    const row = rows.find(r => r['Lobby Code'] === lobbyCode);
+    
+    if (!row) {
+      throw new Error('Lobby not found');
+    }
+    
+    return JSON.parse(row['Game State']);
+  } catch (error) {
+    console.error('Error loading game state from sheet:', error);
+    throw error;
+  }
+}
+
+// Get game state
+app.get('/api/game-state', async (req, res) => {
+  try {
+    const { lobbyCode } = req.query;
+    
+    if (lobbyCode) {
+      const lobby = lobbies.get(lobbyCode);
+      if (!lobby) {
+        return res.status(404).json({ error: 'Lobby not found' });
+      }
+      return res.json(lobby);
+    }
+
+    // Return default game state for solo mode
+    res.json(initializeGameState());
+  } catch (error) {
+    console.error('Error fetching game state:', error);
+    res.status(500).json({ error: 'Failed to fetch game state' });
+  }
+});
+
+// Save game state
+app.post('/api/game-state', async (req, res) => {
+  try {
+    const { gameState, mode, lobbyCode } = req.body;
+    
+    if (mode === 'multiplayer') {
+      if (lobbyCode === 'NEW') {
+        const newLobbyCode = `LOBBY_${Date.now()}`;
+        lobbies.set(newLobbyCode, gameState);
+        await saveGameStateToSheet(newLobbyCode, gameState);
+        res.json({ lobbyCode: newLobbyCode });
+      } else {
+        lobbies.set(lobbyCode, gameState);
+        await saveGameStateToSheet(lobbyCode, gameState);
+        res.json({ success: true });
+      }
+    } else {
+      // For solo mode, just return success
+      res.json({ success: true });
+    }
+  } catch (error) {
+    console.error('Error saving game state:', error);
+    res.status(500).json({ error: 'Failed to save game state' });
+  }
+});
+
+app.post('/api/game-state/create-lobby', async (req, res) => {
+  try {
+    const newLobbyCode = `LOBBY_${Date.now()}`;
+    const gameState = initializeGameState();
+    lobbies.set(newLobbyCode, gameState);
+    await saveGameStateToSheet(newLobbyCode, gameState);
+    res.json({ lobbyCode: newLobbyCode });
+  } catch (error) {
+    console.error('Error creating lobby:', error);
+    res.status(500).json({ error: 'Failed to create lobby' });
+  }
+});
+
+app.get('/api/game-state/join-lobby', async (req, res) => {
+  try {
+    const { lobbyCode } = req.query;
+    const lobby = lobbies.get(lobbyCode);
+    
+    if (!lobby) {
+      return res.status(404).json({ error: 'Lobby not found' });
+    }
+    
+    res.json(lobby);
+  } catch (error) {
+    console.error('Error joining lobby:', error);
+    res.status(500).json({ error: 'Failed to join lobby' });
+  }
+});
+
+app.put('/api/game-state/update-player', async (req, res) => {
+  try {
+    const { lobbyCode, playerId, updates } = req.body;
+    const lobby = lobbies.get(lobbyCode);
+    
+    if (!lobby) {
+      return res.status(404).json({ error: 'Lobby not found' });
+    }
+    
+    const player = lobby.players.find(p => p.id === playerId);
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    
+    Object.assign(player, updates);
+    await saveGameStateToSheet(lobbyCode, lobby);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating player:', error);
+    res.status(500).json({ error: 'Failed to update player' });
+  }
+});
+
+app.post('/api/game-state/add-task', async (req, res) => {
+  try {
+    const { lobbyCode, playerId, task } = req.body;
+    const lobby = lobbies.get(lobbyCode);
+    
+    if (!lobby) {
+      return res.status(404).json({ error: 'Lobby not found' });
+    }
+    
+    const player = lobby.players.find(p => p.id === playerId);
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    
+    player.tasks.push(task);
+    await saveGameStateToSheet(lobbyCode, lobby);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error adding task:', error);
+    res.status(500).json({ error: 'Failed to add task' });
+  }
+});
+
+app.put('/api/game-state/complete-task', async (req, res) => {
+  try {
+    const { lobbyCode, playerId, taskId } = req.body;
+    const lobby = lobbies.get(lobbyCode);
+    
+    if (!lobby) {
+      return res.status(404).json({ error: 'Lobby not found' });
+    }
+    
+    const player = lobby.players.find(p => p.id === playerId);
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    
+    const task = player.tasks.find(t => t.id === taskId);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    
+    task.completed = true;
+    player.score += task.points;
+    await saveGameStateToSheet(lobbyCode, lobby);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error completing task:', error);
+    res.status(500).json({ error: 'Failed to complete task' });
+  }
+});
+
+app.post('/api/game-state/add-subtask', async (req, res) => {
+  try {
+    const { lobbyCode, playerId, taskId, subtask } = req.body;
+    const lobby = lobbies.get(lobbyCode);
+    
+    if (!lobby) {
+      return res.status(404).json({ error: 'Lobby not found' });
+    }
+    
+    const player = lobby.players.find(p => p.id === playerId);
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    
+    const task = player.tasks.find(t => t.id === taskId);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    
+    task.subtasks.push(subtask);
+    await saveGameStateToSheet(lobbyCode, lobby);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error adding subtask:', error);
+    res.status(500).json({ error: 'Failed to add subtask' });
+  }
+});
+
+app.put('/api/game-state/complete-subtask', async (req, res) => {
+  try {
+    const { lobbyCode, playerId, taskId, subtaskId } = req.body;
+    const lobby = lobbies.get(lobbyCode);
+    
+    if (!lobby) {
+      return res.status(404).json({ error: 'Lobby not found' });
+    }
+    
+    const player = lobby.players.find(p => p.id === playerId);
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    
+    const task = player.tasks.find(t => t.id === taskId);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    
+    const subtask = task.subtasks.find(s => s.id === subtaskId);
+    if (!subtask) {
+      return res.status(404).json({ error: 'Subtask not found' });
+    }
+    
+    subtask.completed = true;
+    // Check if all subtasks are complete
+    const allSubtasksComplete = task.subtasks.every(s => s.completed);
+    if (allSubtasksComplete) {
+      task.completed = true;
+      player.score += task.points;
+    }
+    await saveGameStateToSheet(lobbyCode, lobby);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error completing subtask:', error);
+    res.status(500).json({ error: 'Failed to complete subtask' });
+  }
+});
+
+app.put('/api/game-state/update-task', async (req, res) => {
+  try {
+    const { lobbyCode, playerId, taskId, updates } = req.body;
+    const lobby = lobbies.get(lobbyCode);
+    
+    if (!lobby) {
+      return res.status(404).json({ error: 'Lobby not found' });
+    }
+    
+    const player = lobby.players.find(p => p.id === playerId);
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    
+    const task = player.tasks.find(t => t.id === taskId);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    
+    Object.assign(task, updates);
+    await saveGameStateToSheet(lobbyCode, lobby);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating task:', error);
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+});
+
+app.put('/api/game-state/update-subtask', async (req, res) => {
+  try {
+    const { lobbyCode, playerId, taskId, subtaskId, updates } = req.body;
+    const lobby = lobbies.get(lobbyCode);
+    
+    if (!lobby) {
+      return res.status(404).json({ error: 'Lobby not found' });
+    }
+    
+    const player = lobby.players.find(p => p.id === playerId);
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    
+    const task = player.tasks.find(t => t.id === taskId);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    
+    const subtask = task.subtasks.find(s => s.id === subtaskId);
+    if (!subtask) {
+      return res.status(404).json({ error: 'Subtask not found' });
+    }
+    
+    Object.assign(subtask, updates);
+    await saveGameStateToSheet(lobbyCode, lobby);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating subtask:', error);
+    res.status(500).json({ error: 'Failed to update subtask' });
+  }
+});
+
+app.get('/api/game-state/status', async (req, res) => {
+  try {
+    const { lobbyCode } = req.query;
+    const lobby = lobbies.get(lobbyCode);
+    
+    if (!lobby) {
+      return res.status(404).json({ error: 'Lobby not found' });
+    }
+    
+    res.json({
+      players: lobby.players.length,
+      currentPhase: lobby.currentPhase,
+      timeRemaining: lobby.timeRemaining
+    });
+  } catch (error) {
+    console.error('Error getting lobby status:', error);
+    res.status(500).json({ error: 'Failed to get lobby status' });
+  }
+});
+
+app.put('/api/game-state/settings', async (req, res) => {
+  try {
+    const { lobbyCode, settings } = req.body;
+    const lobby = lobbies.get(lobbyCode);
+    
+    if (!lobby) {
+      return res.status(404).json({ error: 'Lobby not found' });
+    }
+    
+    lobby.settings = settings;
+    await saveGameStateToSheet(lobbyCode, lobby);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating settings:', error);
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -130,6 +513,7 @@ app.use((err, req, res, next) => {
 
 // Start server
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+app.listen(PORT, async () => {
+  console.log(`Server running on port ${PORT}`);
+  await initializeSheets();
 });

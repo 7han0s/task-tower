@@ -1,3 +1,5 @@
+const { v4: uuidv4 } = require('uuid');
+
 class Player {
     static STATUS = {
         ONLINE: 'ONLINE',
@@ -7,12 +9,13 @@ class Player {
     };
 
     constructor(data = {}) {
-        this.id = data.id || Date.now();
+        this.id = data.id || uuidv4();
+        this.gameId = data.gameId;
         this.name = data.name || '';
         this.email = data.email;
         this.status = data.status || Player.STATUS.OFFLINE;
         this.score = data.score || 0;
-        this.currentTask = data.currentTask;
+        this.tasks = data.tasks || new Map();
         this.lastActive = data.lastActive || new Date();
         this.createdAt = data.createdAt || new Date();
         this.updatedAt = data.updatedAt || new Date();
@@ -25,26 +28,36 @@ class Player {
         return this;
     }
 
-    assignTask(task) {
-        this.currentTask = task;
+    addTask(taskId, taskData) {
+        this.tasks.set(taskId, taskData);
         this.updatedAt = new Date();
         return this;
     }
 
-    clearTask() {
-        this.currentTask = null;
+    removeTask(taskId) {
+        this.tasks.delete(taskId);
         this.updatedAt = new Date();
+        return this;
+    }
+
+    updateTask(taskId, updates) {
+        const task = this.tasks.get(taskId);
+        if (task) {
+            this.tasks.set(taskId, { ...task, ...updates });
+            this.updatedAt = new Date();
+        }
         return this;
     }
 
     toJSON() {
         return {
             id: this.id,
+            gameId: this.gameId,
             name: this.name,
             email: this.email,
             status: this.status,
             score: this.score,
-            currentTask: this.currentTask,
+            tasks: Object.fromEntries(this.tasks),
             lastActive: this.lastActive,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt

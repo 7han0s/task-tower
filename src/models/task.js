@@ -1,3 +1,5 @@
+const { v4: uuidv4 } = require('uuid');
+
 class Task {
     static COMPLEXITY = {
         EASY: 'EASY',
@@ -18,7 +20,7 @@ class Task {
     };
 
     constructor(data = {}) {
-        this.id = data.id || Date.now();
+        this.id = data.id || uuidv4();
         this.title = data.title || '';
         this.description = data.description || '';
         this.category = data.category || Task.CATEGORY.PERSONAL;
@@ -28,6 +30,7 @@ class Task {
         this.createdAt = data.createdAt || new Date();
         this.completedAt = data.completedAt;
         this.assignedTo = data.assignedTo;
+        this.subtasks = data.subtasks || new Map();
     }
 
     calculatePoints() {
@@ -59,6 +62,24 @@ class Task {
         return this;
     }
 
+    addSubtask(subtaskId, subtaskData) {
+        this.subtasks.set(subtaskId, subtaskData);
+        return this;
+    }
+
+    removeSubtask(subtaskId) {
+        this.subtasks.delete(subtaskId);
+        return this;
+    }
+
+    updateSubtask(subtaskId, updates) {
+        const subtask = this.subtasks.get(subtaskId);
+        if (subtask) {
+            this.subtasks.set(subtaskId, { ...subtask, ...updates });
+        }
+        return this;
+    }
+
     toJSON() {
         return {
             id: this.id,
@@ -70,7 +91,8 @@ class Task {
             status: this.status,
             createdAt: this.createdAt,
             completedAt: this.completedAt,
-            assignedTo: this.assignedTo
+            assignedTo: this.assignedTo,
+            subtasks: Object.fromEntries(this.subtasks)
         };
     }
 
